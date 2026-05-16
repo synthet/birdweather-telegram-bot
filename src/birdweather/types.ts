@@ -1,0 +1,3 @@
+export interface Species { id?: string; commonName: string; scientificName: string; birdweatherUrl?: string; ebirdUrl?: string; macaulayUrl?: string; wikipediaUrl?: string }
+export interface Station { id: string; name: string; stationType?: string; location?: string; timezone?: string; latestDetectionAt?: string; detectionCount?: number; speciesCount?: number; audioUrl?: string; videoUrl?: string; url?: string }
+export interface Detection { id: string; detectedAt?: string; score?: number; confidence?: number; probability?: number; soundscapeUrl?: string; species: Species; station?: Pick<Station,'id'|'name'> }
