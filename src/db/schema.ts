@@ -65,6 +65,19 @@ CREATE TABLE IF NOT EXISTS registration_sessions (
   station_token TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS inat_accounts (
+  chat_id INTEGER PRIMARY KEY,
+  inat_user_id INTEGER,
+  inat_username TEXT,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  token_type TEXT,
+  scope TEXT,
+  expires_at TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_inat_username ON inat_accounts(inat_username);
   `);
   migrateColumns();
 }
