@@ -16,8 +16,8 @@ if (mcpHttpEnabled) {
 
 const timer = startScheduler(bot);
 await bot.launch();
-logger.info({ ebird: isEbirdEnabled() }, 'bot started');
-logger.info({ enabled: isInatOauthEnabled() }, 'capability: inaturalist_oauth');
+logger.info({ ebird: isEbirdEnabled(), inatOauth: isInatOauthEnabled() }, 'bot capabilities');
+logger.info('bot started');
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   process.once(sig, () => {
