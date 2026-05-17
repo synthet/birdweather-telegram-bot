@@ -18,6 +18,8 @@ const schema = z
     LOG_LEVEL: z.string().default('info'),
     NODE_ENV: z.string().default('development'),
     EBIRD_API_TOKEN: z.string().min(1).optional(),
+    INAT_CLIENT_ID: z.string().min(1).optional(),
+    INAT_CLIENT_SECRET: z.string().min(1).optional(),
   });
 
 export const env = schema.parse(process.env);

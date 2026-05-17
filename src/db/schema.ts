@@ -49,6 +49,14 @@ CREATE TABLE IF NOT EXISTS birdweather_accounts (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS inaturalist_auth_tokens (
+  chat_id INTEGER PRIMARY KEY,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS station_geo (
   station_id TEXT PRIMARY KEY,
   lat REAL,
