@@ -65,6 +65,12 @@ CREATE TABLE IF NOT EXISTS registration_sessions (
   station_token TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS oauth_states (
+  state TEXT PRIMARY KEY,
+  redirect_uri TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_states_created_at ON oauth_states(created_at);
 CREATE TABLE IF NOT EXISTS inat_oauth_states (
   state TEXT PRIMARY KEY,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
