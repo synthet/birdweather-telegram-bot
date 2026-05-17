@@ -1,66 +1,159 @@
+import { randomBytes } from 'node:crypto';
 import { db } from './client.js';
 
-const OAUTH_STATE_TTL_SECONDS = 600;
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
-export interface InatAccountLink {
-  chat_id: number;
-  inat_user_id: number;
-  inat_login: string;
+export interface InatTokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  token_type?: string;
+  scope?: string;
+  created_at?: number;
+  expires_in?: number;
+}
+
+export interface InatUser {
+  id: number;
+  login: string;
+  name?: string | null;
+}
+
+export interface InatAuthRecord {
+  telegram_user_id: number;
+  telegram_chat_id: number | null;
+  inat_user_id: number | null;
+  inat_login: string | null;
   access_token: string;
   refresh_token: string | null;
-  token_type: string | null;
-  token_expires_in: number | null;
+  token_expires_at: string | null;
+  refresh_client_id: string | null;
+  refresh_client_secret: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-export function createInatOAuthState(chatId: number, state: string): void {
-  db.prepare('DELETE FROM inat_oauth_states WHERE expires_at <= CURRENT_TIMESTAMP').run();
-  db.prepare(
-    `INSERT INTO inat_oauth_states (state, chat_id, expires_at)
-     VALUES (?, ?, datetime('now', '+' || ? || ' seconds'))`,
-  ).run(state, chatId, OAUTH_STATE_TTL_SECONDS);
+export interface UpsertInatAuthInput {
+  telegramUserId: number;
+  telegramChatId?: number | null;
+  inatUserId?: number | null;
+  inatLogin?: string | null;
+  accessToken: string;
+  refreshToken?: string | null;
+  tokenExpiresAt?: string | Date | null;
+  refreshClientId?: string | null;
+  refreshClientSecret?: string | null;
 }
 
-export function consumeInatOAuthState(state: string): number | null {
+function normalizeExpiry(tokenExpiresAt?: string | Date | null): string | null {
+  if (!tokenExpiresAt) return null;
+  if (tokenExpiresAt instanceof Date) return tokenExpiresAt.toISOString();
+  return tokenExpiresAt;
+}
+
+export function createOauthState(): string {
+  const state = randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + OAUTH_STATE_TTL_MS).toISOString();
+  db.prepare('INSERT INTO inat_oauth_states(state, expires_at) VALUES(?, ?)').run(state, expiresAt);
+  return state;
+}
+
+export function consumeOauthState(state: string): boolean {
   const row = db
-    .prepare(
-      `SELECT chat_id
-       FROM inat_oauth_states
-       WHERE state = ? AND expires_at > CURRENT_TIMESTAMP`,
-    )
-    .get(state) as { chat_id: number } | undefined;
+    .prepare('SELECT state, expires_at FROM inat_oauth_states WHERE state = ?')
+    .get(state) as { state: string; expires_at: string } | undefined;
 
+  if (!row) return false;
   db.prepare('DELETE FROM inat_oauth_states WHERE state = ?').run(state);
-
-  return row?.chat_id ?? null;
+  if (Date.parse(row.expires_at) < Date.now()) return false;
+  return true;
 }
 
-export function saveInatAccountLink(link: InatAccountLink): void {
+export function purgeExpiredOauthStates(): void {
+  db.prepare('DELETE FROM inat_oauth_states WHERE expires_at <= ?').run(new Date().toISOString());
+}
+
+export function saveInatLink(token: InatTokenResponse, user: InatUser): void {
+  const expiresAt =
+    typeof token.created_at === 'number' && typeof token.expires_in === 'number'
+      ? new Date((token.created_at + token.expires_in) * 1000).toISOString()
+      : null;
+
   db.prepare(
-    `INSERT INTO inat_accounts (
-      chat_id,
+    `INSERT INTO inat_account_links(
+      inat_user_id, inat_login, inat_name, access_token, refresh_token, token_type, scope, expires_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(inat_user_id) DO UPDATE SET
+      inat_login=excluded.inat_login,
+      inat_name=excluded.inat_name,
+      access_token=excluded.access_token,
+      refresh_token=excluded.refresh_token,
+      token_type=excluded.token_type,
+      scope=excluded.scope,
+      expires_at=excluded.expires_at,
+      updated_at=CURRENT_TIMESTAMP`,
+  ).run(
+    user.id,
+    user.login,
+    user.name ?? null,
+    token.access_token,
+    token.refresh_token ?? null,
+    token.token_type ?? null,
+    token.scope ?? null,
+    expiresAt,
+  );
+}
+
+export function upsertInatAuth(input: UpsertInatAuthInput): void {
+  db.prepare(
+    `INSERT INTO inat_auth (
+      telegram_user_id,
+      telegram_chat_id,
       inat_user_id,
       inat_login,
       access_token,
       refresh_token,
-      token_type,
-      token_expires_in,
+      token_expires_at,
+      refresh_client_id,
+      refresh_client_secret,
       updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(chat_id) DO UPDATE SET
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(telegram_user_id) DO UPDATE SET
+      telegram_chat_id = excluded.telegram_chat_id,
       inat_user_id = excluded.inat_user_id,
       inat_login = excluded.inat_login,
       access_token = excluded.access_token,
       refresh_token = excluded.refresh_token,
-      token_type = excluded.token_type,
-      token_expires_in = excluded.token_expires_in,
+      token_expires_at = excluded.token_expires_at,
+      refresh_client_id = excluded.refresh_client_id,
+      refresh_client_secret = excluded.refresh_client_secret,
       updated_at = CURRENT_TIMESTAMP`,
   ).run(
-    link.chat_id,
-    link.inat_user_id,
-    link.inat_login,
-    link.access_token,
-    link.refresh_token,
-    link.token_type,
-    link.token_expires_in,
+    input.telegramUserId,
+    input.telegramChatId ?? null,
+    input.inatUserId ?? null,
+    input.inatLogin ?? null,
+    input.accessToken,
+    input.refreshToken ?? null,
+    normalizeExpiry(input.tokenExpiresAt),
+    input.refreshClientId ?? null,
+    input.refreshClientSecret ?? null,
   );
+}
+
+export function getInatAuthByTelegramUser(telegramUserId: number): InatAuthRecord | undefined {
+  return db
+    .prepare('SELECT * FROM inat_auth WHERE telegram_user_id = ?')
+    .get(telegramUserId) as InatAuthRecord | undefined;
+}
+
+export function deleteInatAuth(telegramUserId: number): boolean {
+  const result = db.prepare('DELETE FROM inat_auth WHERE telegram_user_id = ?').run(telegramUserId);
+  return result.changes > 0;
+}
+
+export function isInatTokenExpired(record: Pick<InatAuthRecord, 'token_expires_at'>): boolean {
+  if (!record.token_expires_at) return false;
+  const expiresAtMs = Date.parse(record.token_expires_at);
+  if (Number.isNaN(expiresAtMs)) return true;
+  return expiresAtMs <= Date.now();
 }
