@@ -16,9 +16,15 @@ See `.env.example` for the canonical list. Parsed in `src/config/env.ts` with Zo
 | `POLL_INTERVAL_SECONDS` | No | `60` | Notification poll interval |
 | `SPECIES_NOTIFY_COOLDOWN_MINUTES` | No | `15` | Anti-spam per species |
 | `EBIRD_API_TOKEN` | No | — | [eBird keygen](https://ebird.org/api/keygen) |
+| `TOKEN_ENCRYPTION_KEY` | No | — | Encrypt station/OAuth tokens at rest (16+ chars) |
 | `INAT_CLIENT_ID` | For iNaturalist OAuth | — | OAuth app client ID |
 | `INAT_CLIENT_SECRET` | For iNaturalist OAuth | — | OAuth app client secret |
-| `INAT_REDIRECT_URI` | For iNaturalist OAuth | — | Must exactly match app callback URL |
+| `INAT_REDIRECT_URI` | For iNaturalist OAuth | — | Must match app callback (e.g. `https://host/auth/inat/callback`) |
+| `INAT_OAUTH_SCOPES` | No | `read write` | Space- or comma-separated scopes |
+| `INAT_OAUTH_AUTHORIZE_URL` | No | iNaturalist authorize URL | Override for testing only |
+| `INAT_OAUTH_TOKEN_URL` | No | iNaturalist token URL | Override for testing only |
+| `INAT_API_BASE_URL` | No | `https://api.inaturalist.org/v1` | iNaturalist API base |
+| `INAT_AUTH_BASE_URL` | No | — | Public base URL for `/inat_connect` links in Telegram |
 | `MCP_AUTH_TOKEN` | For HTTP MCP | — | Bearer secret |
 | `MCP_PORT` | For HTTP MCP | — | Exposed in Docker compose |
 | `MCP_HTTP_HOST` | No | `0.0.0.0` | |
@@ -46,7 +52,7 @@ Add the following values:
 ```bash
 INAT_CLIENT_ID=...
 INAT_CLIENT_SECRET=...
-INAT_REDIRECT_URI=https://<your-domain>/auth/inaturalist/callback
+INAT_REDIRECT_URI=https://<your-domain>/auth/inat/callback
 ```
 
 Recommendations:
@@ -159,6 +165,63 @@ URL: http://localhost:3001/mcp
 Authorization: Bearer <MCP_AUTH_TOKEN>
 ```
 
+## iNaturalist OAuth setup
+
+Use this when enabling iNaturalist account linking features in your deployment.
+
+### 1) Create the iNaturalist OAuth app
+
+1. Sign in to iNaturalist with the account that will own the OAuth application.
+2. Create a new OAuth application in iNaturalist account settings.
+3. Set application name/description to identify your bot instance (for example `BirdWeather Telegram Bot - prod`).
+4. Configure redirect URI(s) exactly as used by your bot service (see callback section below).
+5. Save the app and record the generated **Client ID** and **Client Secret**.
+
+### 2) Required environment variables
+
+Add these variables to `.env` for OAuth-enabled deployments:
+
+| Variable                    | Required             | Example                                       | Notes                                           |
+| --------------------------- | -------------------- | --------------------------------------------- | ----------------------------------------------- |
+| `INAT_CLIENT_ID`            | Yes                  | `1234`                                        | OAuth application client ID                     |
+| `INAT_CLIENT_SECRET`        | Yes                  | `abc...`                                      | OAuth application client secret; keep private   |
+| `INAT_REDIRECT_URI`         | Yes                  | `https://bot.example.com/auth/inat/callback`  | Must exactly match iNaturalist app redirect URI |
+| `INAT_OAUTH_SCOPES`         | Yes                  | `read`                                        | Space-delimited scope list; keep minimal        |
+| `INAT_AUTH_BASE_URL`        | No                   | `https://www.inaturalist.org/oauth/authorize` | Override only for testing/proxy use             |
+| `INAT_TOKEN_URL`            | No                   | `https://www.inaturalist.org/oauth/token`     | Override only for testing/proxy use             |
+| `INAT_TOKEN_ENCRYPTION_KEY` | Strongly recommended | `<32+ byte secret>`                           | Encrypt tokens at rest before DB write          |
+
+### 3) Callback URL configuration
+
+- Production should use HTTPS and a stable public hostname.
+- Redirect URI must match **exactly** (scheme, host, path, trailing slash, and port if non-default).
+- If you run separate staging/prod bots, register each callback URL explicitly in iNaturalist and keep secrets isolated by environment.
+- Behind reverse proxies, make sure forwarded protocol/host handling preserves your public callback URL.
+
+### 4) Token lifetime and refresh behavior
+
+- Access tokens are expected to be short-lived and should be treated as ephemeral credentials.
+- If iNaturalist returns refresh tokens for your app/scopes, refresh proactively before expiry and rotate stored refresh tokens whenever a new one is issued.
+- If no refresh token is available (or refresh fails with invalid/revoked grant), require the user to reauthorize.
+- Never assume fixed TTL values in code; rely on provider response fields (`expires_in`, token type, and refresh-token presence).
+
+### 5) Troubleshooting checklist
+
+| Symptom                                   | Checks                                                                                                                                                                         |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `state` mismatch on callback              | Verify state is generated per login attempt, stored server-side, single-use, and not reused across chats/sessions. Check clock skew and multi-instance shared session storage. |
+| `redirect_uri` mismatch / `invalid_grant` | Confirm bot uses exactly the same `INAT_REDIRECT_URI` value registered in iNaturalist. Watch for trailing slash, `http` vs `https`, and proxy host rewrites.                   |
+| “Authorization revoked” / refresh fails   | User revoked app access in iNaturalist or secret rotated. Delete local token pair, prompt re-link, and verify current `INAT_CLIENT_SECRET`.                                    |
+
+### 6) Privacy and data-retention notes
+
+- Store only what is needed: provider user id, access token, refresh token (if present), expiry, scopes, and audit timestamps.
+- Encrypt tokens at rest (application-layer encryption preferred) and redact token fields from logs.
+- Restrict token read access to bot runtime components that perform API calls.
+- On unlink/account deletion, delete stored tokens immediately.
+- Add a retention policy for stale/unused token rows (for example, purge records not refreshed or used in 90 days).
+- Document lawful basis/consent in your privacy notice if deploying for real users.
+
 ## BotFather checklist
 
 Use `/empty` for default menu URL/title unless you want a custom web app button.
@@ -193,21 +256,21 @@ set_ebird_region - Override eBird region code
 
 **Branding assets** (repo):
 
-| File | Use |
-|------|-----|
+| File                                 | Use                          |
+| ------------------------------------ | ---------------------------- |
 | `assets/bot-description-640x360.png` | BotFather description banner |
-| `assets/bot-profile-512x512.png` | Profile avatar |
+| `assets/bot-profile-512x512.png`     | Profile avatar               |
 
 ## Troubleshooting
 
-| Symptom | Check |
-|---------|--------|
-| Bot exits immediately | `TELEGRAM_BOT_TOKEN` set; run `pnpm build` / container logs |
-| `/stations` forbidden | User is not `BOT_OWNER_TELEGRAM_ID` or API token unset |
-| No notifications | `/register`, `/subscribe_station`, not `/pause`; account `station_id` matches subscription |
-| Repeated species alerts | Raise `SPECIES_NOTIFY_COOLDOWN_MINUTES`; verify cooldown table populated |
-| eBird commands fail | `EBIRD_API_TOKEN`; station geo cached (`/ebird_region`) |
-| Docker DB wiped | Use redeploy script; confirm `./data` volume mount |
+| Symptom                 | Check                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| Bot exits immediately   | `TELEGRAM_BOT_TOKEN` set; run `pnpm build` / container logs                                |
+| `/stations` forbidden   | User is not `BOT_OWNER_TELEGRAM_ID` or API token unset                                     |
+| No notifications        | `/register`, `/subscribe_station`, not `/pause`; account `station_id` matches subscription |
+| Repeated species alerts | Raise `SPECIES_NOTIFY_COOLDOWN_MINUTES`; verify cooldown table populated                   |
+| eBird commands fail     | `EBIRD_API_TOKEN`; station geo cached (`/ebird_region`)                                    |
+| Docker DB wiped         | Use redeploy script; confirm `./data` volume mount                                         |
 
 ## Logs
 
