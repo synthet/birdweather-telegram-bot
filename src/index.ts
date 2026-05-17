@@ -4,6 +4,7 @@ import { migrate } from './db/schema.js';
 import { startMcpHttpServer, stopMcpHttpServer } from './mcp/http.js';
 import { logger } from './utils/logging.js';
 import { startScheduler } from './subscriptions/scheduler.js';
+import { isEbirdEnabled } from './ebird/config.js';
 
 if (env.BIRDWEATHER_API_TOKEN && env.BOT_OWNER_TELEGRAM_ID == null) {
   logger.warn(
@@ -20,7 +21,7 @@ if (mcpHttpEnabled) {
 
 const timer = startScheduler(bot);
 await bot.launch();
-logger.info('bot started');
+logger.info({ ebird: isEbirdEnabled() }, 'bot started');
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   process.once(sig, () => {

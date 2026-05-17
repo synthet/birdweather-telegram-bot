@@ -1,11 +1,16 @@
 import { Telegraf } from 'telegraf';
 import { db } from '../db/client.js';
 import { getAccount } from '../db/accounts.js';
-import { fetchRecentDetections, applyDetectionFilters } from '../bot/birdweatherContext.js';
+import { applyDetectionFilters } from '../bot/birdweatherContext.js';
 import { createStationBirdweatherService } from '../birdweather/service.js';
 import { enrichDetection } from '../integrations/detectionEnrichment.js';
 import { dedupe } from './dedupe.js';
-import { formatDetection } from '../bot/formatters/detections.js';
+import { speciesKey } from './speciesKey.js';
+import { isSpeciesOnCooldown, recordSpeciesNotified } from './speciesCooldown.js';
+import {
+  detectionReplyMarkup,
+  formatDetectionHtml,
+} from '../bot/formatters/detections.js';
 import { logger } from '../utils/logging.js';
 import {
   NOTIFICATION_FETCH_LIMIT,
@@ -37,20 +42,43 @@ async function processSubscription(bot: Telegraf, s: ActiveSubscription): Promis
   if (!account || account.station_id !== s.station_id) return;
 
   const filters = detectionFiltersFromRow(s);
-  const detections = await fetchRecentDetections(
-    s.chat_id,
-    s.station_id,
-    NOTIFICATION_FETCH_LIMIT,
-    asFilterRecord(filters),
-  );
+  const filterRecord = asFilterRecord(filters);
+  const service = createStationBirdweatherService(account.station_token);
+  const raw = await service.detections(s.station_id, NOTIFICATION_FETCH_LIMIT, filterRecord);
+  const detections = applyDetectionFilters(raw, filterRecord);
+
+  const settings = db
+    .prepare('SELECT include_soundscape_links FROM chat_settings WHERE chat_id=?')
+    .get(s.chat_id) as { include_soundscape_links: number } | undefined;
+  const includeSoundscape = settings?.include_soundscape_links !== 0;
 
   for (const d of detections.reverse()) {
     if (dedupe.seen(s.chat_id, d.id)) continue;
+
+    const key = speciesKey(d.species);
+    if (isSpeciesOnCooldown(s.chat_id, s.station_id, key)) {
+      dedupe.mark(s.chat_id, s.station_id, d.id);
+      continue;
+    }
+
+    const enriched = await enrichDetection(d, {
+      stationId: s.station_id,
+      chatId: s.chat_id,
+      includeRarity: true,
+    });
     await bot.telegram.sendMessage(
       s.chat_id,
-      `🐦 New BirdWeather detection\n\n${formatDetection(d)}`,
+      formatDetectionHtml(enriched, {
+        includeSoundscapeLink: includeSoundscape,
+      }),
+      {
+        parse_mode: 'HTML',
+        link_preview_options: { is_disabled: true },
+        reply_markup: detectionReplyMarkup(enriched, includeSoundscape),
+      },
     );
     dedupe.mark(s.chat_id, s.station_id, d.id);
+    recordSpeciesNotified(s.chat_id, s.station_id, key);
   }
 }
 

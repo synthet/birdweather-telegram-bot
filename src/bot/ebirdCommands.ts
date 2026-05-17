@@ -1,5 +1,5 @@
 import type { Telegraf } from 'telegraf';
-import { requireEbirdToken, isEbirdEnabled } from '../ebird/config.js';
+import { isEbirdEnabled } from '../ebird/config.js';
 import {
   fetchGeoRecent,
   fetchGeoRecentNotable,
@@ -17,8 +17,9 @@ const ensureSettings = (chatId: number) =>
   db.prepare('INSERT OR IGNORE INTO chat_settings(chat_id) VALUES(?)').run(chatId);
 
 export function setupEbirdCommands(bot: Telegraf): void {
+  if (!isEbirdEnabled()) return;
+
   bot.command('ebird_recent', async (ctx) => {
-    if (!isEbirdEnabled()) return ctx.reply(asErrorMessage(new Error(requireEbirdToken())));
     try {
       const account = requireAccount(ctx.chat.id);
       await refreshStationGeoFromGraphql(account.station_id, account.station_token);
@@ -44,7 +45,6 @@ export function setupEbirdCommands(bot: Telegraf): void {
   });
 
   bot.command('ebird_notable', async (ctx) => {
-    if (!isEbirdEnabled()) return ctx.reply(asErrorMessage(new Error(requireEbirdToken())));
     try {
       const account = requireAccount(ctx.chat.id);
       await refreshStationGeoFromGraphql(account.station_id, account.station_token);
@@ -86,7 +86,6 @@ export function setupEbirdCommands(bot: Telegraf): void {
           : 'Coordinates: hidden or unavailable',
         `eBird region (cached): ${cached?.ebird_region_code ?? 'not set'}`,
         `Your override: ${override?.ebird_region_override ?? 'none'}`,
-        isEbirdEnabled() ? 'eBird API: configured' : 'eBird API: not configured (set EBIRD_API_TOKEN)',
       ];
       return ctx.reply(lines.join('\n'));
     } catch (e) {

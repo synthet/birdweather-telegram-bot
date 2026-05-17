@@ -33,6 +33,14 @@ CREATE INDEX IF NOT EXISTS idx_station_subscriptions_chat_id ON station_subscrip
 CREATE INDEX IF NOT EXISTS idx_station_subscriptions_station_id ON station_subscriptions(station_id);
 CREATE INDEX IF NOT EXISTS idx_delivered_detection_id ON delivered_detections(detection_id);
 CREATE INDEX IF NOT EXISTS idx_delivered_at ON delivered_detections(delivered_at);
+CREATE TABLE IF NOT EXISTS species_last_notified (
+  chat_id INTEGER NOT NULL,
+  station_id TEXT NOT NULL,
+  species_key TEXT NOT NULL,
+  last_notified_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (chat_id, station_id, species_key)
+);
+CREATE INDEX IF NOT EXISTS idx_species_last_notified_at ON species_last_notified(last_notified_at);
 CREATE TABLE IF NOT EXISTS birdweather_accounts (
   chat_id INTEGER PRIMARY KEY,
   station_id TEXT NOT NULL,

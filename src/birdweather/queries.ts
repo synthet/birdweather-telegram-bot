@@ -71,7 +71,6 @@ export const DETECTIONS_QUERY = gql`
           scientificName
           birdweatherUrl
           ebirdUrl
-          macaulayUrl
           wikipediaUrl
         }
         station {
@@ -92,7 +91,6 @@ export const SEARCH_SPECIES_QUERY = gql`
         scientificName
         birdweatherUrl
         ebirdUrl
-        macaulayUrl
         wikipediaUrl
       }
     }

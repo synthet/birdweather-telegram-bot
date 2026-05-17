@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { migrate } from '../db/schema.js';
 import { db } from '../db/client.js';
 import { saveAccount } from '../db/accounts.js';
@@ -8,19 +8,22 @@ import { dedupe } from '../subscriptions/dedupe.js';
 import type { Detection } from '../birdweather/types.js';
 import type { Telegraf } from 'telegraf';
 
-vi.mock('../bot/birdweatherContext.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../bot/birdweatherContext.js')>();
-  return {
-    ...actual,
-    fetchRecentDetections: vi.fn(),
-  };
-});
+vi.mock('../integrations/detectionEnrichment.js', () => ({
+  enrichDetection: vi.fn(async (d: Detection) => d),
+}));
+
+const mockDetections = vi.fn();
+
+vi.mock('../birdweather/service.js', () => ({
+  createStationBirdweatherService: vi.fn(() => ({
+    detections: mockDetections,
+  })),
+}));
 
 vi.mock('../birdweather/rest.js', () => ({
   fetchStationDetections: vi.fn(),
 }));
 
-import { fetchRecentDetections } from '../bot/birdweatherContext.js';
 import { fetchStationDetections } from '../birdweather/rest.js';
 
 function detection(id: string, overrides: Partial<Detection> = {}): Detection {
@@ -43,10 +46,19 @@ function setupSubscription(chatId: number, stationId = '42'): void {
 }
 
 function cleanupChat(chatId: number): void {
+  db.prepare('DELETE FROM species_last_notified WHERE chat_id=?').run(chatId);
   db.prepare('DELETE FROM delivered_detections WHERE chat_id=?').run(chatId);
   db.prepare('DELETE FROM station_subscriptions WHERE chat_id=?').run(chatId);
   db.prepare('DELETE FROM chat_settings WHERE chat_id=?').run(chatId);
   db.prepare('DELETE FROM birdweather_accounts WHERE chat_id=?').run(chatId);
+}
+
+function resetNotificationTestDb(): void {
+  db.prepare('DELETE FROM species_last_notified WHERE chat_id >= 900000').run();
+  db.prepare('DELETE FROM delivered_detections WHERE chat_id >= 900000').run();
+  db.prepare('DELETE FROM station_subscriptions WHERE chat_id >= 900000').run();
+  db.prepare('DELETE FROM chat_settings WHERE chat_id >= 900000').run();
+  db.prepare('DELETE FROM birdweather_accounts WHERE chat_id >= 900000').run();
 }
 
 function mockBot(): Telegraf {
@@ -55,16 +67,24 @@ function mockBot(): Telegraf {
   } as unknown as Telegraf;
 }
 
-describe('processNotifications', () => {
+describe.sequential('processNotifications', () => {
   beforeEach(() => {
     migrate();
-    vi.clearAllMocks();
+    resetNotificationTestDb();
+    mockDetections.mockReset();
+    mockDetections.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    resetNotificationTestDb();
+    mockDetections.mockReset();
+    mockDetections.mockResolvedValue([]);
   });
 
   it('sends a message for undelivered detections', async () => {
     const chatId = 900_001;
     setupSubscription(chatId);
-    vi.mocked(fetchRecentDetections).mockResolvedValue([detection('d-new')]);
+    mockDetections.mockResolvedValue([detection('d-new')]);
 
     const bot = mockBot();
     await processNotifications(bot);
@@ -73,6 +93,7 @@ describe('processNotifications', () => {
     expect(bot.telegram.sendMessage).toHaveBeenCalledWith(
       chatId,
       expect.stringContaining('Robin'),
+      expect.any(Object),
     );
     expect(dedupe.seen(chatId, 'd-new')).toBe(true);
     cleanupChat(chatId);
@@ -82,7 +103,7 @@ describe('processNotifications', () => {
     const chatId = 900_002;
     setupSubscription(chatId);
     dedupe.mark(chatId, '42', 'd-old');
-    vi.mocked(fetchRecentDetections).mockResolvedValue([detection('d-old')]);
+    mockDetections.mockResolvedValue([detection('d-old')]);
 
     const bot = mockBot();
     await processNotifications(bot);
@@ -91,16 +112,33 @@ describe('processNotifications', () => {
     cleanupChat(chatId);
   });
 
-  it('skips paused subscriptions', async () => {
-    const chatId = 900_003;
+  it('notifies once per species within the cooldown window', async () => {
+    const chatId = 900_007;
     setupSubscription(chatId);
-    db.prepare('UPDATE chat_settings SET paused=1 WHERE chat_id=?').run(chatId);
-    vi.mocked(fetchRecentDetections).mockResolvedValue([detection('d-paused')]);
+    mockDetections.mockResolvedValue([
+      detection('d-robin-1'),
+      detection('d-robin-2', { score: 0.95 }),
+    ]);
 
     const bot = mockBot();
     await processNotifications(bot);
 
-    expect(fetchRecentDetections).not.toHaveBeenCalled();
+    expect(bot.telegram.sendMessage).toHaveBeenCalledOnce();
+    expect(dedupe.seen(chatId, 'd-robin-1')).toBe(true);
+    expect(dedupe.seen(chatId, 'd-robin-2')).toBe(true);
+    cleanupChat(chatId);
+  });
+
+  it('skips paused subscriptions', async () => {
+    const chatId = 900_003;
+    setupSubscription(chatId);
+    db.prepare('UPDATE chat_settings SET paused=1 WHERE chat_id=?').run(chatId);
+    mockDetections.mockResolvedValue([detection('d-paused')]);
+
+    const bot = mockBot();
+    await processNotifications(bot);
+
+    expect(mockDetections).not.toHaveBeenCalled();
     expect(bot.telegram.sendMessage).not.toHaveBeenCalled();
     cleanupChat(chatId);
   });
@@ -111,31 +149,38 @@ describe('processNotifications', () => {
     setupSubscription(chatIdFail);
     setupSubscription(chatIdOk, '43');
 
-    vi.mocked(fetchRecentDetections).mockImplementation(async (chatId) => {
-      if (chatId === chatIdFail) throw new Error('API down');
+    mockDetections.mockImplementation(async (stationId: string) => {
+      if (stationId === '42') throw new Error('API down');
       return [detection('d-ok')];
     });
 
     const bot = mockBot();
     await processNotifications(bot);
 
+    mockDetections.mockReset();
+    mockDetections.mockResolvedValue([]);
+
     expect(bot.telegram.sendMessage).toHaveBeenCalledOnce();
-    expect(bot.telegram.sendMessage).toHaveBeenCalledWith(chatIdOk, expect.any(String));
+    expect(bot.telegram.sendMessage).toHaveBeenCalledWith(
+      chatIdOk,
+      expect.any(String),
+      expect.any(Object),
+    );
     cleanupChat(chatIdFail);
     cleanupChat(chatIdOk);
   });
 
-  it('passes score thresholds to fetchRecentDetections', async () => {
+  it('passes score thresholds to the detection fetch', async () => {
     const chatId = 900_006;
     setupSubscription(chatId);
     db.prepare(
       'UPDATE chat_settings SET min_score=0.5, min_confidence=0.4, min_probability=0.3 WHERE chat_id=?',
     ).run(chatId);
-    vi.mocked(fetchRecentDetections).mockResolvedValue([]);
+    mockDetections.mockResolvedValue([]);
 
     await processNotifications(mockBot());
 
-    expect(fetchRecentDetections).toHaveBeenCalledWith(chatId, '42', 5, {
+    expect(mockDetections).toHaveBeenCalledWith('42', 5, {
       scoreGte: 0.5,
       confidenceGte: 0.4,
       probabilityGte: 0.3,
@@ -144,10 +189,16 @@ describe('processNotifications', () => {
   });
 });
 
-describe('seedDeliveredDetections', () => {
+describe.sequential('seedDeliveredDetections', () => {
   beforeEach(() => {
     migrate();
-    vi.clearAllMocks();
+    resetNotificationTestDb();
+    mockDetections.mockReset();
+    mockDetections.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    resetNotificationTestDb();
   });
 
   it('marks recent detections as delivered without sending', async () => {
@@ -167,10 +218,7 @@ describe('seedDeliveredDetections', () => {
     expect(dedupe.seen(chatId, 'd-seed-1')).toBe(true);
     expect(dedupe.seen(chatId, 'd-seed-2')).toBe(true);
 
-    vi.mocked(fetchRecentDetections).mockResolvedValue([
-      detection('d-seed-1'),
-      detection('d-seed-2'),
-    ]);
+    mockDetections.mockResolvedValue([detection('d-seed-1'), detection('d-seed-2')]);
     const bot = mockBot();
     await processNotifications(bot);
     expect(bot.telegram.sendMessage).not.toHaveBeenCalled();

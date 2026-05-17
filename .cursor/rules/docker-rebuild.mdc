@@ -1,0 +1,51 @@
+---
+description: Rebuild Docker after changes that affect the container image or runtime
+alwaysApply: true
+---
+
+# Rebuild Docker after significant changes
+
+This bot runs in Docker via `docker compose` (`Dockerfile` + `docker-compose.yml`). Source edits on the host do **not** update the running container until the image is rebuilt.
+
+## When to rebuild
+
+Rebuild and recreate the `bot` service after changes to any of:
+
+- `src/**` (compiled into `dist/` in the image)
+- `package.json` or `package-lock.json` (dependencies, scripts, native modules like `better-sqlite3`)
+- `tsconfig.json`
+- `Dockerfile` or `docker-compose.yml`
+- `.env.example` when new **required** env vars are added (document in `.env`; user must set values)
+
+A rebuild is **not** required for docs-only edits, test-only files under `src/tests/`, or formatting/lint config that does not change production dependencies or `src/`.
+
+## How to rebuild (preserve data)
+
+`./data` is bind-mounted; never delete it. Prefer the project redeploy scripts (stop → SQLite backup → build → recreate):
+
+**Windows (PowerShell):**
+
+```powershell
+.\scripts\docker-redeploy.ps1
+```
+
+**Git Bash / WSL / Linux:**
+
+```bash
+bash scripts/docker-redeploy.sh
+```
+
+For a first deploy or when no DB backup is needed:
+
+```bash
+docker compose up --build -d
+```
+
+After redeploy, verify with `docker compose ps` and `docker compose logs -f bot` if the user cares about runtime behavior.
+
+## Agent workflow
+
+1. After finishing a task that touched significant paths above, **run** the appropriate redeploy script (or `docker compose up --build -d` if the user is only bringing the stack up).
+2. Mention briefly that a rebuild was done so the container matches the codebase.
+3. Do not rebuild on every tiny edit mid-task; rebuild once when the feature or fix is complete.
+4. Never stage or commit `.env`, `data/`, or secrets when preparing commits (see `no-secrets-in-git`).

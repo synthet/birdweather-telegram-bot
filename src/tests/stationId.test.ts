@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { parseStationId } from '../utils/stationId.js';
+import { parseStationId, stationBirdweatherUrl } from '../utils/stationId.js';
+
+describe('stationBirdweatherUrl', () => {
+  it('builds app station page urls', () => {
+    expect(stationBirdweatherUrl('26807')).toBe('https://app.birdweather.com/stations/26807');
+  });
+});
 
 describe('parseStationId', () => {
   it('accepts numeric ids', () => {

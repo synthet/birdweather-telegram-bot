@@ -1,4 +1,4 @@
-import { env } from '../config/env.js';
+import { getEbirdToken } from './config.js';
 import type { EbirdObservation, EbirdRegionReverse, EbirdTaxonomyRow } from './types.js';
 
 const EBIRD_BASE = 'https://api.ebird.org/v2';
@@ -14,10 +14,11 @@ export class EbirdApiError extends Error {
 }
 
 function getToken(): string {
-  if (!env.EBIRD_API_TOKEN) {
+  const token = getEbirdToken();
+  if (!token) {
     throw new EbirdApiError('EBIRD_API_TOKEN is not configured', 0);
   }
-  return env.EBIRD_API_TOKEN;
+  return token;
 }
 
 export async function ebirdGet<T>(

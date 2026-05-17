@@ -11,10 +11,11 @@ import { validateStationToken } from '../birdweather/rest.js';
 import { requireStationService } from './birdweatherContext.js';
 import { db } from '../db/client.js';
 import { asErrorMessage } from '../utils/errors.js';
-import { parseStationId } from '../utils/stationId.js';
+import { parseStationId, stationBirdweatherUrl } from '../utils/stationId.js';
 import { createStationBirdweatherService } from '../birdweather/service.js';
 import { getChatDetectionFilters, seedDeliveredDetections } from '../subscriptions/seeding.js';
 import { refreshStationNameForChat } from './stationMetadata.js';
+import { refreshStationGeoFromGraphql } from './stationGeoRefresh.js';
 
 const ensureSettings = (chatId: number) =>
   db.prepare('INSERT OR IGNORE INTO chat_settings(chat_id) VALUES(?)').run(chatId);
@@ -74,6 +75,12 @@ async function handleRegistrationMessage(ctx: Context): Promise<boolean> {
     saveAccount(chatId, stationId, session.station_token, stationName ?? null);
     clearRegistration(chatId);
     ensureSettings(chatId);
+
+    try {
+      await refreshStationGeoFromGraphql(stationId, session.station_token);
+    } catch {
+      // geo cache is best-effort
+    }
     db.prepare(
       'INSERT OR REPLACE INTO station_subscriptions(chat_id,station_id,station_name,active) VALUES(?,?,?,1)',
     ).run(chatId, stationId, stationName ?? null);
@@ -90,7 +97,7 @@ async function handleRegistrationMessage(ctx: Context): Promise<boolean> {
     }
 
     await ctx.reply(
-      `Linked to station ${stationId}${stationName ? ` (${stationName})` : ''}.\n\nYou are subscribed to detection alerts. Use /account to review, /unregister to remove.`,
+      `Linked to station ${stationId}${stationName ? ` (${stationName})` : ''}.\n${stationBirdweatherUrl(stationId)}\n\nYou are subscribed to detection alerts. Use /account to review, /unregister to remove.`,
     );
     return true;
   }
@@ -109,7 +116,7 @@ export function setupRegistration(bot: Telegraf): void {
     const existing = getAccount(chatId);
     if (existing) {
       await ctx.reply(
-        `You already linked station ${existing.station_id} (${existing.station_name ?? 'unnamed'}).\n\nSend /unregister first to link a different station, or /account to view details.`,
+        `You already linked station ${existing.station_id} (${existing.station_name ?? 'unnamed'}).\n${stationBirdweatherUrl(existing.station_id)}\n\nSend /unregister first to link a different station, or /account to view details.`,
       );
       return;
     }
@@ -151,7 +158,7 @@ export function setupRegistration(bot: Telegraf): void {
     }
     const refreshedName = await refreshStationNameForChat(ctx.chat.id);
     const displayName = refreshedName ?? account.station_name ?? 'Unknown';
-    let details = `Station: ${displayName}\nID: ${account.station_id}\nToken: ${maskToken(account.station_token)}`;
+    let details = `Station: ${displayName}\nID: ${account.station_id}\nBirdWeather: ${stationBirdweatherUrl(account.station_id)}\nToken: ${maskToken(account.station_token)}`;
     try {
       const station = await requireStationService(ctx.chat.id, account.station_id).station(
         account.station_id,

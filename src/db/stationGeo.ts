@@ -1,6 +1,7 @@
 import { db } from './client.js';
 import type { Station } from '../birdweather/types.js';
 import type { StationGeoRecord } from '../ebird/types.js';
+import { isEbirdEnabled } from '../ebird/config.js';
 
 export function upsertStationGeo(station: Station): void {
   const lat = station.coords?.lat ?? null;
@@ -80,8 +81,9 @@ export function resolveGeoForCommands(
   if (geo.lat == null || geo.lng == null || geo.location_privacy) {
     if (!regionCode) {
       return {
-        error:
-          'Station coordinates are private or missing. Set a region with /set_ebird_region <code> (e.g. US-CA-037).',
+        error: isEbirdEnabled()
+          ? 'Station coordinates are private or missing. Set a region with /set_ebird_region <code> (e.g. US-CA-037).'
+          : 'Station coordinates are private or missing; eBird regional reports need a region override (configure EBIRD_API_TOKEN).',
       };
     }
     return {

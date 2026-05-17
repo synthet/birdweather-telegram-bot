@@ -9,6 +9,7 @@ import {
   TOP_SPECIES_QUERY,
 } from './queries.js';
 import type { Detection, Species, Station } from './types.js';
+import { stationBirdweatherUrl } from '../utils/stationId.js';
 
 interface GqlStation {
   id: string;
@@ -66,6 +67,7 @@ function mapStation(s: GqlStation): Station {
     speciesCount: s.counts?.species,
     audioUrl: s.audioUrl,
     videoUrl: s.videoUrl,
+    url: stationBirdweatherUrl(s.id),
   };
 }
 

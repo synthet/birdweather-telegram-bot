@@ -1,10 +1,88 @@
 import { describe, expect, it } from 'vitest';
-import { formatDetection } from '../bot/formatters/detections.js';
+import {
+  detectionReplyMarkup,
+  formatDetectionHtml,
+} from '../bot/formatters/detections.js';
 
-describe('formatDetection',()=>{
-  it('formats detection',()=>{
-    const msg = formatDetection({id:'1', species:{commonName:'Robin', scientificName:'Turdus migratorius'}, score:0.9});
-    expect(msg).toContain('Robin');
-    expect(msg).toContain('Score: 0.9');
+describe('formatDetectionHtml', () => {
+  it('formats species, metrics, and links', () => {
+    const msg = formatDetectionHtml({
+      id: '1',
+      detectedAt: '2026-05-17T00:33:50Z',
+      score: 7.7,
+      confidence: 0.8836901187896729,
+      probability: 0.5634709596633911,
+      soundscapeUrl: 'https://media.birdweather.com/soundscapes/test.flac',
+      species: {
+        commonName: 'Robin',
+        scientificName: 'Turdus migratorius',
+        birdweatherUrl: 'https://app.birdweather.com/species/1',
+      },
+    });
+    expect(msg).toContain('<b>Robin</b>');
+    expect(msg).toContain('<i>Turdus migratorius</i>');
+    expect(msg).toContain('Score 7.7');
+    expect(msg).not.toContain('Score 7.7%');
+    expect(msg).toContain('Confidence 88%');
+    expect(msg).toContain('Probability 56%');
+    expect(msg).not.toContain('0.8836901187896729');
+    expect(msg).not.toContain('0.5634709596633911');
+    expect(msg).toContain('🔊 Listen');
+    expect(msg).toMatch(/<a href="[^"]+">🔊 Listen<\/a>/);
+  });
+
+  it('includes eBird, Macaulay, and rarity note', () => {
+    const msg = formatDetectionHtml({
+      id: '1',
+      species: {
+        commonName: 'Robin',
+        scientificName: 'Turdus migratorius',
+        ebirdUrl: 'https://ebird.org/species/amerob',
+        macaulayUrl: 'https://macaulaylibrary.org/species/amerob',
+      },
+      rarityNote: 'eBird: unusual for this region.',
+    });
+    expect(msg).toContain('eBird');
+    expect(msg).toContain('Macaulay');
+    expect(msg).toContain('unusual for this region');
+  });
+
+  it('links station name to BirdWeather when station id is present', () => {
+    const msg = formatDetectionHtml({
+      id: '1',
+      detectedAt: '2026-05-17T00:33:50Z',
+      species: { commonName: 'Robin', scientificName: 'Turdus migratorius' },
+      station: { id: '26807', name: 'Sputnik' },
+    });
+    expect(msg).toContain('Sputnik');
+    expect(msg).toContain('href="https://app.birdweather.com/stations/26807"');
+  });
+
+  it('omits soundscape link when disabled', () => {
+    const msg = formatDetectionHtml(
+      {
+        id: '1',
+        species: { commonName: 'Robin', scientificName: 'Turdus migratorius' },
+        soundscapeUrl: 'https://media.birdweather.com/soundscapes/test.flac',
+      },
+      { includeSoundscapeLink: false },
+    );
+    expect(msg).not.toContain('Listen');
+  });
+});
+
+describe('detectionReplyMarkup', () => {
+  it('builds inline buttons for audio and BirdWeather', () => {
+    const markup = detectionReplyMarkup({
+      id: '1',
+      species: {
+        commonName: 'Robin',
+        scientificName: 'Turdus migratorius',
+        birdweatherUrl: 'https://app.birdweather.com/species/1',
+      },
+      soundscapeUrl: 'https://media.birdweather.com/soundscapes/test.flac',
+    });
+    expect(markup?.inline_keyboard[0]).toHaveLength(2);
+    expect(markup?.inline_keyboard[0][0].text).toBe('🔊 Listen');
   });
 });

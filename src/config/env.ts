@@ -12,6 +12,7 @@ const schema = z
     BIRDWEATHER_GRAPHQL_ENDPOINT: z.string().url().default('https://app.birdweather.com/graphql'),
     DATABASE_URL: z.string().default('file:./data/birdweather-bot.sqlite'),
     POLL_INTERVAL_SECONDS: z.coerce.number().int().positive().default(60),
+    SPECIES_NOTIFY_COOLDOWN_MINUTES: z.coerce.number().int().positive().default(15),
     MCP_AUTH_TOKEN: z.string().min(1).optional(),
     MCP_PORT: z.coerce.number().int().positive().optional(),
     MCP_HTTP_HOST: z.string().default('0.0.0.0'),

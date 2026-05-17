@@ -2,7 +2,7 @@ import { Telegraf } from 'telegraf';
 import { env } from '../config/env.js';
 import { db } from '../db/client.js';
 import { formatStation } from './formatters/stations.js';
-import { formatDetection } from './formatters/detections.js';
+import { formatDetectionHtml } from './formatters/detections.js';
 import { formatSpecies } from './formatters/species.js';
 import {
   fetchRecentDetections,
@@ -15,7 +15,11 @@ import { asErrorMessage } from '../utils/errors.js';
 import { parseCommandNumber } from '../utils/commandArgs.js';
 import { getChatDetectionFilters, seedDeliveredDetections } from '../subscriptions/seeding.js';
 import { refreshStationNameForChat } from './stationMetadata.js';
+import { cacheStationGeo, refreshStationGeoFromGraphql } from './stationGeoRefresh.js';
+import { setupEbirdCommands } from './ebirdCommands.js';
+import { isEbirdEnabled } from '../ebird/config.js';
 import { getAccount, hasActiveSubscription } from '../db/accounts.js';
+import { stationBirdweatherUrl } from '../utils/stationId.js';
 
 export const bot = new Telegraf(env.TELEGRAM_BOT_TOKEN);
 const ensureSettings = (chatId: number) =>
@@ -39,9 +43,18 @@ const HELP_TEXT = [
   '/set_probability <num>',
   '/pause',
   '/resume',
+  ...(isEbirdEnabled()
+    ? [
+        '/ebird_recent — recent eBird reports near your station',
+        '/ebird_notable — notable/rare eBird reports nearby',
+        '/ebird_region — show cached eBird region and coordinates status',
+        '/set_ebird_region <code> — manual eBird region override',
+      ]
+    : []),
 ].join('\n');
 
 setupRegistration(bot);
+setupEbirdCommands(bot);
 
 bot.command('start', (ctx) =>
   ctx.reply(
@@ -56,7 +69,17 @@ bot.command('station', async (ctx) => {
     if (!id) {
       return ctx.reply('Usage: /station <station_id>\nOr /register to link your station first.');
     }
+    const account = getAccount(ctx.chat.id);
     const st = await requireStationService(ctx.chat.id, id).station(id);
+    if (st && account?.station_id === id) {
+      try {
+        await refreshStationGeoFromGraphql(id, account.station_token);
+      } catch {
+        // geo cache is best-effort
+      }
+    } else if (st) {
+      cacheStationGeo(st);
+    }
     return ctx.reply(st ? formatStation(st) : 'Station not found');
   } catch (e) {
     return ctx.reply(asErrorMessage(e));
@@ -81,7 +104,12 @@ bot.command('recent', async (ctx) => {
   }
   try {
     const list = await fetchRecentDetections(ctx.chat.id, id, 10);
-    return ctx.reply(list.length ? list.map(formatDetection).join('\n\n') : 'No detections found');
+    return ctx.reply(
+      list.length
+        ? list.map((d) => formatDetectionHtml(d)).join('\n\n──────────\n\n')
+        : 'No detections found',
+      { parse_mode: 'HTML', link_preview_options: { is_disabled: true } },
+    );
   } catch (e) {
     return ctx.reply(asErrorMessage(e));
   }
@@ -105,9 +133,10 @@ bot.command('top', async (ctx) => {
   }
   try {
     const list = await requireStationService(ctx.chat.id, id).topSpecies(id, 10);
+    const header = `Top species · ${stationBirdweatherUrl(id)}`;
     return ctx.reply(
       list.length
-        ? list.map((x, i) => `${i + 1}. ${x.species.commonName} (${x.species.scientificName}) - ${x.count}`).join('\n')
+        ? `${header}\n\n${list.map((x, i) => `${i + 1}. ${x.species.commonName} (${x.species.scientificName}) - ${x.count}`).join('\n')}`
         : 'No top species data',
     );
   } catch (e) {
@@ -123,11 +152,20 @@ bot.command('subscribe_station', async (ctx) => {
   }
   ensureSettings(chatId);
   try {
+    const account = getAccount(chatId);
     const st = await requireStationService(chatId, id).station(id);
+    if (st && account) {
+      try {
+        await refreshStationGeoFromGraphql(id, account.station_token);
+      } catch {
+        // geo cache is best-effort
+      }
+    } else if (st) {
+      cacheStationGeo(st);
+    }
     db.prepare(
       'INSERT OR REPLACE INTO station_subscriptions(chat_id,station_id,station_name,active) VALUES(?,?,?,1)',
     ).run(chatId, id, st?.name ?? null);
-    const account = getAccount(chatId);
     if (account) {
       try {
         await seedDeliveredDetections(chatId, id, account.station_token, getChatDetectionFilters(chatId));
@@ -135,7 +173,9 @@ bot.command('subscribe_station', async (ctx) => {
         // seeding is best-effort
       }
     }
-    return ctx.reply(`Subscribed to station ${id}${st?.name ? ` (${st.name})` : ''}`);
+    return ctx.reply(
+      `Subscribed to station ${id}${st?.name ? ` (${st.name})` : ''}\n${stationBirdweatherUrl(id)}`,
+    );
   } catch (e) {
     return ctx.reply(asErrorMessage(e));
   }
@@ -158,7 +198,9 @@ bot.command('subscriptions', async (ctx) => {
   if (!rows.length) return ctx.reply('No subscriptions');
 
   const account = getAccount(chatId);
-  const lines = rows.map((r) => `${r.station_id} - ${r.station_name ?? 'Unknown'}`);
+  const lines = rows.map(
+    (r) => `${r.station_id} - ${r.station_name ?? 'Unknown'}\n${stationBirdweatherUrl(r.station_id)}`,
+  );
   if (!account) {
     lines.push(
       '\nStation token missing — alerts and /recent will not work until you /register again.',
@@ -178,12 +220,15 @@ bot.command('settings', (ctx) => {
   };
   const account = getAccount(ctx.chat.id);
   const linkLine = account
-    ? `Linked station: ${account.station_id}\n`
+    ? `Linked station: ${account.station_id}\n${stationBirdweatherUrl(account.station_id)}\n`
     : hasActiveSubscription(ctx.chat.id)
       ? 'Station token missing — use /register to restore your link.\n'
       : '';
+  const ebirdLine = isEbirdEnabled()
+    ? `\nebird region override=${(s as { ebird_region_override?: string | null }).ebird_region_override ?? 'none'}`
+    : '';
   return ctx.reply(
-    `${linkLine}score>=${s.min_score}\nconfidence>=${s.min_confidence}\nprobability>=${s.min_probability}\ninclude soundscape=${!!s.include_soundscape_links}\npaused=${!!s.paused}`,
+    `${linkLine}score>=${s.min_score}\nconfidence>=${s.min_confidence}\nprobability>=${s.min_probability}\ninclude soundscape=${!!s.include_soundscape_links}\npaused=${!!s.paused}${ebirdLine}`,
   );
 });
 
