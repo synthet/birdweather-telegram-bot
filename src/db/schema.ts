@@ -41,6 +41,13 @@ CREATE TABLE IF NOT EXISTS species_last_notified (
   PRIMARY KEY (chat_id, station_id, species_key)
 );
 CREATE INDEX IF NOT EXISTS idx_species_last_notified_at ON species_last_notified(last_notified_at);
+CREATE TABLE IF NOT EXISTS delivered_detection_sessions (
+  chat_id INTEGER NOT NULL,
+  station_id TEXT NOT NULL,
+  session_key TEXT NOT NULL,
+  delivered_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (chat_id, station_id, session_key)
+);
 CREATE TABLE IF NOT EXISTS birdweather_accounts (
   chat_id INTEGER PRIMARY KEY,
   station_id TEXT NOT NULL,
@@ -160,5 +167,8 @@ function migrateColumns(): void {
   }
   if (!columnExists('inat_auth', 'refresh_client_secret')) {
     db.exec('ALTER TABLE inat_auth ADD COLUMN refresh_client_secret TEXT');
+  }
+  if (!columnExists('inat_oauth_states', 'telegram_chat_id')) {
+    db.exec('ALTER TABLE inat_oauth_states ADD COLUMN telegram_chat_id INTEGER');
   }
 }

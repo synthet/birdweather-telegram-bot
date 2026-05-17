@@ -6,7 +6,8 @@ import { isInitializeRequest, type McpServer } from '@modelcontextprotocol/serve
 import type { Request, Response } from 'express';
 import { mcpEnv, isMcpHttpEnabled } from '../config/mcpEnv.js';
 import { env } from '../config/env.js';
-import { consumeOauthState, createOauthState, purgeExpiredOauthStates, saveInatLink } from '../db/inatAuth.js';
+import { linkInatAccountForChat } from '../db/inatAccounts.js';
+import { consumeOauthState, createOauthState, purgeExpiredOauthStates } from '../db/inatAuth.js';
 import { UserInputError } from '../utils/errors.js';
 import { logger } from '../utils/logging.js';
 import { bearerAuthMiddleware, rateLimitMiddleware } from './auth.js';
@@ -123,7 +124,15 @@ export async function startMcpHttpServer(): Promise<Server> {
         throw new UserInputError('iNaturalist OAuth is not configured');
       }
       purgeExpiredOauthStates();
-      const state = createOauthState();
+      const chatIdRaw = `${req.query.telegram_chat_id ?? ''}`.trim();
+      const telegramChatId = chatIdRaw ? Number(chatIdRaw) : undefined;
+      if (chatIdRaw && !Number.isFinite(telegramChatId)) {
+        throw new UserInputError('Invalid telegram_chat_id');
+      }
+      if (telegramChatId == null) {
+        throw new UserInputError('Missing telegram_chat_id — open the link from /inat_connect');
+      }
+      const state = createOauthState(telegramChatId);
       const url = new URL(env.INAT_OAUTH_AUTHORIZE_URL);
       url.searchParams.set('client_id', env.INAT_CLIENT_ID);
       url.searchParams.set('redirect_uri', env.INAT_REDIRECT_URI);
@@ -143,7 +152,8 @@ export async function startMcpHttpServer(): Promise<Server> {
       if (!env.INAT_CLIENT_ID || !env.INAT_CLIENT_SECRET || !env.INAT_REDIRECT_URI) {
         throw new UserInputError('iNaturalist OAuth is not configured');
       }
-      if (!consumeOauthState(state)) throw new UserInputError('Invalid or expired OAuth state');
+      const telegramChatId = consumeOauthState(state);
+      if (telegramChatId == null) throw new UserInputError('Invalid or expired OAuth state');
 
       const tokenResp = await fetch(env.INAT_OAUTH_TOKEN_URL, {
         method: 'POST',
@@ -183,7 +193,11 @@ export async function startMcpHttpServer(): Promise<Server> {
         created_at: tokenJson.created_at,
         expires_in: tokenJson.expires_in,
       };
-      saveInatLink(token, { id: user.id, login: user.login, name: user.name ?? null });
+      linkInatAccountForChat(telegramChatId, token, {
+        id: user.id,
+        login: user.login,
+        name: user.name ?? null,
+      });
       res
         .status(200)
         .type('html')

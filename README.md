@@ -29,7 +29,8 @@ Maintainer-only notes (deployment, roadmap, session history): `docs/local/` — 
 | `BIRDWEATHER_API_TOKEN` | Optional; MCP public catalog tools (`search_stations`, `search_species`) |
 | `BIRDWEATHER_STATION_TOKEN`, `BIRDWEATHER_STATION_ID` | Optional; MCP station-scoped tools |
 | `EBIRD_API_TOKEN` | Optional; eBird commands + rarity/links |
-| `SPECIES_NOTIFY_COOLDOWN_MINUTES` | Optional; default 15 |
+| `SPECIES_NOTIFY_COOLDOWN_MINUTES` | Optional; default 10 (burst cooldown per species) |
+| `SPECIES_RARE_STATION_MAX_COUNT` | Optional; default 5 (station rarity threshold for same-day repeats) |
 | `MCP_AUTH_TOKEN`, `MCP_PORT` | Optional; HTTP MCP with bot |
 
 Full list: `.env.example` and [docs/OPERATIONS.md](./docs/OPERATIONS.md).

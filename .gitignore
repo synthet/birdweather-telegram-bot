@@ -1,11 +1,23 @@
 node_modules
 dist
+
+# Secrets and env with real values (only .env.example may be committed)
 .env
+.env.*
+!.env.example
+.env.deploy
+
+# Keys and credential stores
+*.pem
+*.key
+credentials.json
+secrets.json
+
 .tools/
 .cursor/
 data/*.sqlite
 data/backups/
 coverage
 
-# Local ops: deployment, roadmap, session history, deploy scripts (see docs/local/)
+# Local ops: provisioning, operator deploy paths, personal SSH key names (see docs/local/)
 docs/local/

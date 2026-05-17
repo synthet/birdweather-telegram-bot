@@ -50,22 +50,29 @@ function normalizeExpiry(tokenExpiresAt?: string | Date | null): string | null {
   return tokenExpiresAt;
 }
 
-export function createOauthState(): string {
+export function createOauthState(telegramChatId?: number): string {
   const state = randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + OAUTH_STATE_TTL_MS).toISOString();
-  db.prepare('INSERT INTO inat_oauth_states(state, expires_at) VALUES(?, ?)').run(state, expiresAt);
+  db.prepare(
+    'INSERT INTO inat_oauth_states(state, expires_at, telegram_chat_id) VALUES(?, ?, ?)',
+  ).run(state, expiresAt, telegramChatId ?? null);
   return state;
 }
 
-export function consumeOauthState(state: string): boolean {
+/** @returns Telegram chat id bound to the state, or undefined if invalid/expired. */
+export function consumeOauthState(state: string): number | undefined {
   const row = db
-    .prepare('SELECT state, expires_at FROM inat_oauth_states WHERE state = ?')
-    .get(state) as { state: string; expires_at: string } | undefined;
+    .prepare(
+      'SELECT state, expires_at, telegram_chat_id FROM inat_oauth_states WHERE state = ?',
+    )
+    .get(state) as
+    | { state: string; expires_at: string; telegram_chat_id: number | null }
+    | undefined;
 
-  if (!row) return false;
+  if (!row) return undefined;
   db.prepare('DELETE FROM inat_oauth_states WHERE state = ?').run(state);
-  if (Date.parse(row.expires_at) < Date.now()) return false;
-  return true;
+  if (Date.parse(row.expires_at) < Date.now()) return undefined;
+  return row.telegram_chat_id ?? undefined;
 }
 
 export function purgeExpiredOauthStates(): void {

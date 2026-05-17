@@ -7,8 +7,10 @@ import { createStationBirdweatherService } from '../birdweather/service.js';
 import { enrichDetection } from '../integrations/detectionEnrichment.js';
 import { sendDetection } from '../bot/sendDetection.js';
 import { dedupe } from './dedupe.js';
+import { detectionSessionKey } from './detectionSessionKey.js';
 import { summarizeDetectionMetrics } from './mergedDetectionMetrics.js';
 import { pickBestDetection } from './pickBestDetection.js';
+import { sessionDedupe } from './sessionDedupe.js';
 import { speciesKey } from './speciesKey.js';
 import { isSpeciesOnCooldown, recordSpeciesNotified } from './speciesCooldown.js';
 import { shouldNotifySpecies } from './speciesNotifyPolicy.js';
@@ -53,22 +55,34 @@ async function processSubscription(bot: Telegraf, s: ActiveSubscription): Promis
     .get(s.chat_id) as { include_soundscape_links: number } | undefined;
   const includeSoundscape = settings?.include_soundscape_links !== 0;
 
-  const pendingBySpecies = new Map<string, Detection[]>();
+  const pendingBySession = new Map<string, Detection[]>();
   for (const d of detections) {
     if (dedupe.seen(s.chat_id, d.id)) continue;
-    const key = speciesKey(d.species);
-    const group = pendingBySpecies.get(key) ?? [];
+    const sessionKey = detectionSessionKey(d);
+    const group = pendingBySession.get(sessionKey) ?? [];
     group.push(d);
-    pendingBySpecies.set(key, group);
+    pendingBySession.set(sessionKey, group);
   }
 
-  for (const [key, group] of pendingBySpecies) {
-    if (isSpeciesOnCooldown(s.chat_id, s.station_id, key)) {
+  for (const [sessionKey, group] of pendingBySession) {
+    const markGroupDelivered = () => {
+      sessionDedupe.mark(s.chat_id, s.station_id, sessionKey);
       for (const d of group) dedupe.mark(s.chat_id, s.station_id, d.id);
+    };
+
+    if (sessionDedupe.seen(s.chat_id, s.station_id, sessionKey)) {
+      markGroupDelivered();
       continue;
     }
 
     const best = pickBestDetection(group);
+    const species = speciesKey(best.species);
+
+    if (isSpeciesOnCooldown(s.chat_id, s.station_id, species)) {
+      markGroupDelivered();
+      continue;
+    }
+
     const enriched = await enrichDetection(best, {
       stationId: s.station_id,
       chatId: s.chat_id,
@@ -82,16 +96,19 @@ async function processSubscription(bot: Telegraf, s: ActiveSubscription): Promis
       timeZone: enriched.station?.timezone,
     });
     if (!notify) {
-      for (const d of group) dedupe.mark(s.chat_id, s.station_id, d.id);
+      markGroupDelivered();
       continue;
     }
 
-    await sendDetection(bot.telegram, s.chat_id, enriched, {
-      includeSoundscapeLink: includeSoundscape,
-      mergedMetrics: group.length > 1 ? summarizeDetectionMetrics(group) : undefined,
-    });
-    for (const d of group) dedupe.mark(s.chat_id, s.station_id, d.id);
-    recordSpeciesNotified(s.chat_id, s.station_id, key);
+    recordSpeciesNotified(s.chat_id, s.station_id, species);
+    try {
+      await sendDetection(bot.telegram, s.chat_id, enriched, {
+        includeSoundscapeLink: includeSoundscape,
+        mergedMetrics: group.length > 1 ? summarizeDetectionMetrics(group) : undefined,
+      });
+    } finally {
+      markGroupDelivered();
+    }
   }
 }
 

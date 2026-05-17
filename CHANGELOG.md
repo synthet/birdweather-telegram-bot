@@ -5,6 +5,30 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-05-17
+
+### Added
+
+- Acoustic **session** dedupe for notifications: one alert per species per time bucket (`DETECTION_SESSION_BUCKET_MINUTES`, default 30) via `delivered_detection_sessions` and `detectionSessionKey`.
+- `/recent` compact numbered list in a single message, collapsing detections in the same acoustic session (like `/top`).
+- iNaturalist OAuth binds to the Telegram chat that started `/inat_connect`; tokens persist to `inat_accounts` and the API client on callback.
+- Hetzner deploy helpers: `resolve-hetzner-host` and `deploy-hetzner-hcloud` scripts (hcloud IP lookup + SSH deploy).
+- `check:publish-safe` script and CI step to block secrets, keys, and `docs/local/` from being published.
+
+### Changed
+
+- Notification pipeline groups by acoustic session (not only species per poll); species burst cooldown and calendar-day policy apply after session checks.
+- Default `SPECIES_NOTIFY_COOLDOWN_MINUTES` is 30 (burst window between same-species alerts).
+- `speciesKey` prefers scientific name over BirdWeather species id for stable cooldown identity.
+- `/recent` no longer sends one photo per detection; uses the compact list formatter instead.
+- MCP `/auth/inat/start` requires `telegram_chat_id` from the bot connect link.
+- GitHub Actions production deploy job disabled until Hetzner secrets are configured; publish-safe runs on every CI build.
+
+### Fixed
+
+- Repeat detection IDs in the same acoustic visit no longer trigger a second Telegram alert.
+- iNaturalist `/inat_disconnect` also clears rows in `inaturalist_auth_tokens`.
+
 ## [0.2.0] - 2026-05-17
 
 ### Added

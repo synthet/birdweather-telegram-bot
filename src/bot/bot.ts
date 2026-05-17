@@ -2,8 +2,9 @@ import { Telegraf } from 'telegraf';
 import { env } from '../config/env.js';
 import { db } from '../db/client.js';
 import { formatStation } from './formatters/stations.js';
-import { sendDetection } from './sendDetection.js';
+import { formatRecentDetectionList } from './formatters/detections.js';
 import { formatSpecies } from './formatters/species.js';
+import { collapseRecentDetections } from './collapseRecentDetections.js';
 import {
   fetchRecentDetections,
   requireStationService,
@@ -110,26 +111,18 @@ bot.command('stations', async (ctx) => {
   }
 });
 
+const RECENT_LIST_FETCH = 30;
+const RECENT_LIST_SHOW = 10;
+
 bot.command('recent', async (ctx) => {
   const id = resolveStationId(ctx.chat.id, ctx.payload);
   if (!id) {
     return ctx.reply('Usage: /recent <station_id>\nOr /register to use your linked station.');
   }
   try {
-    const list = await fetchRecentDetections(ctx.chat.id, id, 10);
-    if (!list.length) return ctx.reply('No detections found');
-
-    const settings = db
-      .prepare('SELECT include_soundscape_links FROM chat_settings WHERE chat_id=?')
-      .get(ctx.chat.id) as { include_soundscape_links: number } | undefined;
-    const includeSoundscape = settings?.include_soundscape_links !== 0;
-
-    for (const d of list) {
-      await sendDetection(ctx.telegram, ctx.chat.id, d, {
-        includeSoundscapeLink: includeSoundscape,
-      });
-    }
-    return;
+    const raw = await fetchRecentDetections(ctx.chat.id, id, RECENT_LIST_FETCH);
+    const list = collapseRecentDetections(raw, RECENT_LIST_SHOW);
+    return ctx.reply(formatRecentDetectionList(list, id));
   } catch (e) {
     return ctx.reply(asErrorMessage(e));
   }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   detectionReplyMarkup,
   formatDetectionHtml,
+  formatRecentDetectionList,
 } from '../bot/formatters/detections.js';
 
 describe('formatDetectionHtml', () => {
@@ -105,6 +106,28 @@ describe('formatDetectionHtml', () => {
       { includeSoundscapeLink: false },
     );
     expect(msg).not.toContain('Listen');
+  });
+});
+
+describe('formatRecentDetectionList', () => {
+  it('formats a numbered list with station link header', () => {
+    const msg = formatRecentDetectionList(
+      [
+        {
+          id: '1',
+          detectedAt: '2026-05-17T21:30:00.000Z',
+          score: 7.7,
+          confidence: 0.88,
+          species: { commonName: 'Robin', scientificName: 'Turdus migratorius' },
+          station: { id: '42', name: 'Home', timezone: 'UTC' },
+        },
+      ],
+      '42',
+    );
+    expect(msg).toContain('Recent detections · https://app.birdweather.com/stations/42');
+    expect(msg).toContain('1. Robin (Turdus migratorius)');
+    expect(msg).toContain('score 7.7');
+    expect(msg).toContain('conf 88%');
   });
 });
 

@@ -13,6 +13,16 @@ describe('speciesKey', () => {
       speciesKey({ commonName: 'Robin', scientificName: 'Turdus migratorius' }),
     ).toBe('sci:turdus migratorius');
   });
+
+  it('uses scientific name even when BirdWeather species id is present', () => {
+    expect(
+      speciesKey({
+        id: '99',
+        commonName: 'Robin',
+        scientificName: 'Turdus migratorius',
+      }),
+    ).toBe('sci:turdus migratorius');
+  });
 });
 
 describe('species cooldown', () => {

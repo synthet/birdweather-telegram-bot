@@ -121,3 +121,25 @@ export function detectionReplyMarkup(
 /** Plain-text fallback (e.g. logs). */
 export const formatDetection = (d: Detection): string =>
   formatDetectionHtml(d).replace(/<[^>]+>/g, '');
+
+function formatRecentDetectionLine(d: Detection, index: number): string {
+  const when = formatDetectionTime(d.detectedAt, d.station?.timezone);
+  const parts = [
+    `${index + 1}. ${d.species.commonName} (${d.species.scientificName})`,
+    when,
+    d.score != null ? `score ${formatScore(d.score)}` : null,
+    d.confidence != null ? `conf ${formatAsPercent(d.confidence)}` : null,
+  ].filter((p): p is string => p != null);
+  return parts.join(' · ');
+}
+
+/** Compact numbered list for /recent (one Telegram message, like /top). */
+export function formatRecentDetectionList(
+  detections: Detection[],
+  stationId: string,
+): string {
+  if (!detections.length) return 'No detections found';
+  const header = `Recent detections · ${stationBirdweatherUrl(stationId)}`;
+  const lines = detections.map((d, i) => formatRecentDetectionLine(d, i));
+  return `${header}\n\n${lines.join('\n')}`;
+}

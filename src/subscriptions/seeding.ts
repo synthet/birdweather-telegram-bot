@@ -2,6 +2,8 @@ import { fetchStationDetections } from '../birdweather/rest.js';
 import { applyDetectionFilters } from '../bot/birdweatherContext.js';
 import { db } from '../db/client.js';
 import { dedupe } from './dedupe.js';
+import { detectionSessionKey } from './detectionSessionKey.js';
+import { sessionDedupe } from './sessionDedupe.js';
 import { seedSpeciesCooldownFromDetections } from './speciesCooldown.js';
 import {
   NOTIFICATION_FETCH_LIMIT,
@@ -20,6 +22,7 @@ export async function seedDeliveredDetections(
   const filtered = applyDetectionFilters(detections, asFilterRecord(filters));
   for (const d of filtered) {
     dedupe.mark(chatId, stationId, d.id);
+    sessionDedupe.mark(chatId, stationId, detectionSessionKey(d));
   }
   seedSpeciesCooldownFromDetections(chatId, stationId, filtered);
 }

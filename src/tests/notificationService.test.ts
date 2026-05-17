@@ -51,6 +51,7 @@ function setupSubscription(chatId: number, stationId = '42'): void {
 
 function cleanupChat(chatId: number): void {
   db.prepare('DELETE FROM species_last_notified WHERE chat_id=?').run(chatId);
+  db.prepare('DELETE FROM delivered_detection_sessions WHERE chat_id=?').run(chatId);
   db.prepare('DELETE FROM delivered_detections WHERE chat_id=?').run(chatId);
   db.prepare('DELETE FROM station_subscriptions WHERE chat_id=?').run(chatId);
   db.prepare('DELETE FROM chat_settings WHERE chat_id=?').run(chatId);
@@ -59,6 +60,7 @@ function cleanupChat(chatId: number): void {
 
 function resetNotificationTestDb(): void {
   db.prepare('DELETE FROM species_last_notified WHERE chat_id >= 900000').run();
+  db.prepare('DELETE FROM delivered_detection_sessions WHERE chat_id >= 900000').run();
   db.prepare('DELETE FROM delivered_detections WHERE chat_id >= 900000').run();
   db.prepare('DELETE FROM station_subscriptions WHERE chat_id >= 900000').run();
   db.prepare('DELETE FROM chat_settings WHERE chat_id >= 900000').run();
@@ -146,19 +148,50 @@ describe.sequential('processNotifications', () => {
     cleanupChat(chatId);
   });
 
+  it('does not resend when a new detection id arrives for the same acoustic session', async () => {
+    const chatId = 900_012;
+    setupSubscription(chatId);
+    const at = '2026-05-17T21:30:00.000Z';
+    mockDetections.mockResolvedValueOnce([
+      detection('d-session-1', {
+        detectedAt: at,
+        species: { commonName: 'Titmouse', scientificName: 'Baeolophus atricristatus' },
+      }),
+    ]);
+    const bot = mockBot();
+    await processNotifications(bot);
+    expect(bot.telegram.sendMessage).toHaveBeenCalledOnce();
+
+    mockDetections.mockResolvedValueOnce([
+      detection('d-session-2', {
+        detectedAt: at,
+        score: 0.99,
+        species: { commonName: 'Titmouse', scientificName: 'Baeolophus atricristatus' },
+      }),
+    ]);
+    await processNotifications(bot);
+    expect(bot.telegram.sendMessage).toHaveBeenCalledOnce();
+    expect(dedupe.seen(chatId, 'd-session-2')).toBe(true);
+    cleanupChat(chatId);
+  });
+
   it('does not notify the same species again on the same day when common at station', async () => {
     const chatId = 900_011;
     setupSubscription(chatId);
-    mockDetections.mockResolvedValueOnce([detection('d-day-1')]);
+    mockDetections.mockResolvedValueOnce([
+      detection('d-day-1', { detectedAt: '2026-05-17T10:00:00.000Z' }),
+    ]);
     const bot = mockBot();
     await processNotifications(bot);
 
     db.prepare(
-      `UPDATE species_last_notified SET last_notified_at = datetime('now', '-20 minutes')
+      `UPDATE species_last_notified SET last_notified_at = datetime('now', '-40 minutes')
        WHERE chat_id=? AND station_id=?`,
     ).run(chatId, '42');
 
-    mockDetections.mockResolvedValueOnce([detection('d-day-2', { score: 0.99 })]);
+    mockDetections.mockResolvedValueOnce([
+      detection('d-day-2', { score: 0.99, detectedAt: '2026-05-17T16:00:00.000Z' }),
+    ]);
     await processNotifications(bot);
     expect(bot.telegram.sendMessage).toHaveBeenCalledOnce();
     expect(dedupe.seen(chatId, 'd-day-2')).toBe(true);

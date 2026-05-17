@@ -14,7 +14,8 @@ See `.env.example` for the canonical list. Parsed in `src/config/env.ts` with Zo
 | `BIRDWEATHER_GRAPHQL_ENDPOINT` | No | BirdWeather app URL | |
 | `DATABASE_URL` | No | `file:./data/birdweather-bot.sqlite` | |
 | `POLL_INTERVAL_SECONDS` | No | `60` | Notification poll interval |
-| `SPECIES_NOTIFY_COOLDOWN_MINUTES` | No | `15` | Anti-spam per species |
+| `SPECIES_NOTIFY_COOLDOWN_MINUTES` | No | `10` | Burst anti-spam per species (minutes between alerts) |
+| `SPECIES_RARE_STATION_MAX_COUNT` | No | `5` | Top-100 count at or below this is “infrequent” for same-day rare repeats |
 | `EBIRD_API_TOKEN` | No | — | [eBird keygen](https://ebird.org/api/keygen) |
 | `TOKEN_ENCRYPTION_KEY` | No | — | Encrypt station/OAuth tokens at rest (16+ chars) |
 | `INAT_CLIENT_ID` | For iNaturalist OAuth | — | OAuth app client ID |
@@ -31,7 +32,7 @@ See `.env.example` for the canonical list. Parsed in `src/config/env.ts` with Zo
 | `LOG_LEVEL` | No | `info` | pino |
 | `NODE_ENV` | No | `development` | |
 
-**Security:** Never commit `.env`, `data/*.sqlite`, or paste tokens into chat logs that may be stored in git.
+**Security:** Never commit `.env`, `data/*.sqlite`, deployment keys (`HCLOUD_TOKEN`, `HETZNER_SSH_PRIVATE_KEY`, `HETZNER_ENV`), or production server IPs/hostnames. Keep operator provisioning under gitignored `docs/local/`. Run `pnpm run check:publish-safe` before commits; CI runs the same check. Do not paste tokens or live infrastructure into PRs or chat logs that may be stored in git.
 
 ## iNaturalist OAuth setup
 
@@ -268,7 +269,7 @@ set_ebird_region - Override eBird region code
 | Bot exits immediately   | `TELEGRAM_BOT_TOKEN` set; run `pnpm build` / container logs                                |
 | `/stations` forbidden   | User is not `BOT_OWNER_TELEGRAM_ID` or API token unset                                     |
 | No notifications        | `/register`, `/subscribe_station`, not `/pause`; account `station_id` matches subscription |
-| Repeated species alerts | Raise `SPECIES_NOTIFY_COOLDOWN_MINUTES`; verify cooldown table populated                   |
+| Repeated species alerts | Raise `SPECIES_NOTIFY_COOLDOWN_MINUTES` for burst spam; common species alert at most once per calendar day unless eBird rare, first-ever, or infrequent (≤ `SPECIES_RARE_STATION_MAX_COUNT` in top 100); verify `species_last_notified` populated |
 | eBird commands fail     | `EBIRD_API_TOKEN`; station geo cached (`/ebird_region`)                                    |
 | Docker DB wiped         | Use redeploy script; confirm `./data` volume mount                                         |
 

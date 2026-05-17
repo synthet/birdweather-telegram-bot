@@ -1,14 +1,10 @@
 import { describe, it } from 'vitest';
 
-// NOTE: These are acceptance-test placeholders for the OAuth connect flow.
-// They are intentionally marked todo until the OAuth connect module lands.
+// HTTP route integration tests for /auth/inat/* are not run here (Express app).
+// Chat binding and persistence are covered in inatAccounts.test.ts and inatAuth.test.ts.
 
-describe('OAuth connect flow', () => {
-  it.todo('start endpoint emits valid OAuth URL and persists state');
-  it.todo('callback rejects invalid state');
-  it.todo('callback rejects expired state');
-  it.todo('callback success stores linkage and tokens');
+describe('OAuth connect flow (integration gaps)', () => {
+  it.todo('start endpoint redirects with valid OAuth URL when MCP HTTP is up');
+  it.todo('callback rejects invalid state over HTTP');
   it.todo('authed client refreshes expired tokens and retries once');
-  it.todo('disconnect removes linkage');
-  it.todo('connect/disconnect/status command handlers require private chat');
 });

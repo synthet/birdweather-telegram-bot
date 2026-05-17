@@ -48,15 +48,23 @@ flowchart TB
 | Path | Responsibility |
 |------|----------------|
 | `src/index.ts` | Migrate DB, start MCP HTTP (if configured), scheduler, `bot.launch()` |
-| `src/bot/bot.ts` | Command wiring, help text |
+| `src/bot/bot.ts` | Command wiring, help text, threshold commands |
+| `src/bot/sendDetection.ts` | `sendPhoto` / `sendMessage` for detection alerts and `/recent` |
+| `src/bot/editedCommandMiddleware.ts` | Re-run handlers when user edits a message into a command |
 | `src/bot/registration.ts` | Multi-step `/register` session |
 | `src/bot/birdweatherContext.ts` | Auth guards, filters, `fetchRecentDetections` |
 | `src/bot/ebirdCommands.ts` | eBird command handlers |
-| `src/bot/formatters/*` | Telegram HTML for stations, species, detections, eBird |
+| `src/bot/inatCommands.ts` | iNaturalist OAuth link commands |
+| `src/bot/formatters/*` | Telegram HTML for stations, species, detections, eBird, merged metrics |
 | `src/birdweather/` | GraphQL client, queries, service factories, REST detections |
 | `src/ebird/` | eBird HTTP client, taxonomy cache, enrich, rarity, geo helpers |
 | `src/integrations/detectionEnrichment.ts` | Orchestrates species + rarity enrichment |
 | `src/subscriptions/` | Scheduler, notification pipeline, dedupe, cooldown, seeding |
+| `src/subscriptions/notificationService.ts` | Poll loop: group by species, notify policy, `sendDetection` |
+| `src/subscriptions/speciesNotifyPolicy.ts` | Calendar-day cap and rare/infrequent exceptions |
+| `src/subscriptions/stationSpeciesFrequency.ts` | Top-species cache for station rarity threshold |
+| `src/subscriptions/pickBestDetection.ts` | Best row in a same-species batch |
+| `src/subscriptions/mergedDetectionMetrics.ts` | Min/max/avg summaries for merged alerts |
 | `src/db/` | Schema, accounts, registration sessions, station geo |
 | `src/mcp/` | MCP server tools, HTTP transport, Bearer auth |
 | `src/config/` | Zod env parsing, owner check, MCP env |
@@ -92,15 +100,19 @@ scheduler tick
        load birdweather_accounts (must match station_id)
        GraphQL detections (NOTIFICATION_FETCH_LIMIT)
        applyDetectionFilters (score, confidence, probability)
-       for each detection (oldest first):
-         if dedupe.seen → continue
-         if species cooldown → mark dedupe, continue
-         enrichDetection (eBird links + rarity)
-         sendMessage HTML + inline keyboard
-         dedupe.mark + recordSpeciesNotified
+       group undelivered detections by speciesKey
+       for each species group:
+         if burst cooldown → mark all IDs delivered, continue
+         pickBestDetection → enrichDetection (eBird links + rarity)
+         if shouldNotifySpecies (calendar-day + rare) is false
+           → mark all IDs delivered, continue
+         sendDetection (photo or HTML text, mergedMetrics if group.length > 1)
+         dedupe.mark all IDs + recordSpeciesNotified
 ```
 
 **Species key:** derived in `speciesKey.ts` from scientific name (and related fields) so repeat alerts collapse to one species identity.
+
+**Calendar day:** `stationCalendarDay` in `src/utils/dates.ts` uses the station IANA timezone when known, else UTC.
 
 ## Database tables
 
