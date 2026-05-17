@@ -9,7 +9,7 @@ import { env } from '../config/env.js';
 import { consumeOauthState, createOauthState, purgeExpiredOauthStates, saveInatLink } from '../db/inatAuth.js';
 import { UserInputError } from '../utils/errors.js';
 import { logger } from '../utils/logging.js';
-import { bearerAuthMiddleware } from './auth.js';
+import { bearerAuthMiddleware, rateLimitMiddleware } from './auth.js';
 import { createMcpContext } from './context.js';
 import { createBirdweatherMcpServer } from './createServer.js';
 
@@ -112,10 +112,11 @@ export async function startMcpHttpServer(): Promise<Server> {
   });
 
   const auth = bearerAuthMiddleware(authToken);
+  const rateLimit = rateLimitMiddleware(120, 60_000);
 
-  app.post('/mcp', auth, (req, res) => void handleMcpPost(req, res, getServer));
-  app.get('/mcp', auth, (req, res) => void handleMcpGet(req, res));
-  app.delete('/mcp', auth, (req, res) => void handleMcpDelete(req, res));
+  app.post('/mcp', rateLimit, auth, (req, res) => void handleMcpPost(req, res, getServer));
+  app.get('/mcp', rateLimit, auth, (req, res) => void handleMcpGet(req, res));
+  app.delete('/mcp', rateLimit, auth, (req, res) => void handleMcpDelete(req, res));
   app.get('/auth/inat/start', (req, res) => {
     try {
       if (!env.INAT_CLIENT_ID || !env.INAT_REDIRECT_URI) {

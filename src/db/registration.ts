@@ -1,4 +1,6 @@
 import { db } from './client.js';
+import { env } from '../config/env.js';
+import { decryptSecret, encryptSecret } from '../utils/secrets.js';
 
 export type RegistrationStep = 'awaiting_token' | 'awaiting_station_id';
 
@@ -9,9 +11,15 @@ export interface RegistrationSession {
 }
 
 export function getRegistrationSession(chatId: number): RegistrationSession | undefined {
-  return db
+  const session = db
     .prepare('SELECT chat_id, step, station_token FROM registration_sessions WHERE chat_id = ?')
     .get(chatId) as RegistrationSession | undefined;
+  if (!session?.station_token) return session;
+  if (!env.TOKEN_ENCRYPTION_KEY) return session;
+  return {
+    ...session,
+    station_token: decryptSecret(session.station_token, env.TOKEN_ENCRYPTION_KEY),
+  };
 }
 
 export function startRegistration(chatId: number): void {
@@ -23,9 +31,12 @@ export function startRegistration(chatId: number): void {
 }
 
 export function setRegistrationToken(chatId: number, stationToken: string): void {
+  const storedToken = env.TOKEN_ENCRYPTION_KEY
+    ? encryptSecret(stationToken, env.TOKEN_ENCRYPTION_KEY)
+    : stationToken;
   db.prepare(
     `UPDATE registration_sessions SET step = 'awaiting_station_id', station_token = ? WHERE chat_id = ?`,
-  ).run(stationToken, chatId);
+  ).run(storedToken, chatId);
 }
 
 export function clearRegistration(chatId: number): void {
