@@ -1,11 +1,11 @@
 import { db } from './client.js';
+import { env } from '../config/env.js';
 import { decryptSecret, encryptSecret } from '../utils/secrets.js';
 
 export interface BirdweatherAccount {
   chat_id: number;
   station_id: string;
   station_token: string;
-  station_token_encrypted?: string;
   station_name: string | null;
   created_at: string;
   updated_at: string;
@@ -15,9 +15,12 @@ export function getAccount(chatId: number): BirdweatherAccount | undefined {
   const account = db
     .prepare('SELECT * FROM birdweather_accounts WHERE chat_id = ?')
     .get(chatId) as BirdweatherAccount | undefined;
-
-  if (account?.station_token) account.station_token = decryptSecret(account.station_token);
-  return account;
+  if (!account) return undefined;
+  if (!env.TOKEN_ENCRYPTION_KEY) return account;
+  return {
+    ...account,
+    station_token: decryptSecret(account.station_token, env.TOKEN_ENCRYPTION_KEY),
+  };
 }
 
 export function saveAccount(
@@ -26,6 +29,9 @@ export function saveAccount(
   stationToken: string,
   stationName: string | null,
 ): void {
+  const storedToken = env.TOKEN_ENCRYPTION_KEY
+    ? encryptSecret(stationToken, env.TOKEN_ENCRYPTION_KEY)
+    : stationToken;
   db.prepare(
     `INSERT INTO birdweather_accounts (chat_id, station_id, station_token, station_name, updated_at)
      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -34,7 +40,7 @@ export function saveAccount(
        station_token = excluded.station_token,
        station_name = excluded.station_name,
        updated_at = CURRENT_TIMESTAMP`,
-  ).run(chatId, stationId, encryptSecret(stationToken), stationName);
+  ).run(chatId, stationId, storedToken, stationName);
 }
 
 export function deleteAccount(chatId: number): boolean {
