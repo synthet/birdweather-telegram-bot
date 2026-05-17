@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS oauth_states (
 CREATE INDEX IF NOT EXISTS idx_oauth_states_created_at ON oauth_states(created_at);
 CREATE TABLE IF NOT EXISTS inat_oauth_states (
   state TEXT PRIMARY KEY,
+  telegram_chat_id INTEGER,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   expires_at TEXT NOT NULL
 );
@@ -160,5 +161,8 @@ function migrateColumns(): void {
   }
   if (!columnExists('inat_auth', 'refresh_client_secret')) {
     db.exec('ALTER TABLE inat_auth ADD COLUMN refresh_client_secret TEXT');
+  }
+  if (!columnExists('inat_oauth_states', 'telegram_chat_id')) {
+    db.exec('ALTER TABLE inat_oauth_states ADD COLUMN telegram_chat_id INTEGER');
   }
 }

@@ -1,5 +1,5 @@
 import { env } from '../config/env.js';
-import { getInatAuthToken, saveInatAuthToken } from '../db/inaturalistAuth.js';
+import { getInatAccount, updateInatAccountTokens } from '../db/inatAccounts.js';
 import { logger } from '../utils/logging.js';
 
 const INAT_BASE = 'https://api.inaturalist.org/v1';
@@ -28,7 +28,8 @@ function parseExpiresAt(expiresAt: string): number {
   return Number.isNaN(value) ? 0 : value;
 }
 
-function isExpired(expiresAt: string): boolean {
+function isExpired(expiresAt: string | null): boolean {
+  if (!expiresAt) return false;
   return parseExpiresAt(expiresAt) <= Date.now() + 30_000;
 }
 
@@ -68,7 +69,7 @@ async function refreshToken(chatId: number, refreshTokenValue: string): Promise<
 
   const payload = (await res.json()) as OAuthTokenResponse;
   const nextRefreshToken = payload.refresh_token ?? refreshTokenValue;
-  saveInatAuthToken(
+  updateInatAccountTokens(
     chatId,
     payload.access_token,
     nextRefreshToken,
@@ -79,7 +80,7 @@ async function refreshToken(chatId: number, refreshTokenValue: string): Promise<
 }
 
 async function getValidAccessToken(chatId: number): Promise<string> {
-  const token = getInatAuthToken(chatId);
+  const token = getInatAccount(chatId);
   if (!token) {
     throw new InatApiError(
       'No iNaturalist account linked for this user. Re-link your iNaturalist account and try again.',
@@ -92,6 +93,13 @@ async function getValidAccessToken(chatId: number): Promise<string> {
     return token.access_token;
   }
 
+  if (!token.refresh_token) {
+    throw new InatApiError(
+      'Token is expired and no refresh token is available. Re-link your iNaturalist account.',
+      0,
+      'INAT_REFRESH_TOKEN_MISSING',
+    );
+  }
   logger.info({ chatId }, 'Refreshing expired iNaturalist token');
   return refreshToken(chatId, token.refresh_token);
 }
@@ -119,11 +127,14 @@ async function authedRequest<T>(
   let res = await doFetch();
   if (res.status === 401 || res.status === 403) {
     logger.warn({ chatId, status: res.status, path }, 'iNaturalist auth request rejected, retrying once');
-    const current = getInatAuthToken(chatId);
+    const current = getInatAccount(chatId);
     if (!current) {
       throw new InatApiError('iNaturalist token missing after auth failure. Re-link and try again.', 0, 'INAT_TOKEN_NOT_FOUND');
     }
 
+    if (!current.refresh_token) {
+      throw new InatApiError('iNaturalist token missing after auth failure. Re-link and try again.', 0, 'INAT_TOKEN_NOT_FOUND');
+    }
     token = await refreshToken(chatId, current.refresh_token);
     res = await doFetch();
   }
