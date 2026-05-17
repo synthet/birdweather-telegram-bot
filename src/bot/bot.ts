@@ -22,6 +22,7 @@ import { getChatDetectionFilters, seedDeliveredDetections } from '../subscriptio
 import { refreshStationNameForChat } from './stationMetadata.js';
 import { cacheStationGeo, refreshStationGeoFromGraphql } from './stationGeoRefresh.js';
 import { setupEbirdCommands } from './ebirdCommands.js';
+import { setupInatCommands } from './inatCommands.js';
 import { isEbirdEnabled } from '../ebird/config.js';
 import { getAccount, hasActiveSubscription } from '../db/accounts.js';
 import { stationBirdweatherUrl } from '../utils/stationId.js';
@@ -58,10 +59,14 @@ const HELP_TEXT = [
         '/set_ebird_region <code> — manual eBird region override',
       ]
     : []),
+  '/inat_connect — get one-time iNaturalist OAuth link (private chat only)',
+  '/inat_status — show iNaturalist link status',
+  '/inat_disconnect — remove iNaturalist link (private chat only)',
 ].join('\n');
 
 setupRegistration(bot);
 setupEbirdCommands(bot);
+setupInatCommands(bot);
 
 bot.command('start', (ctx) =>
   ctx.reply(
