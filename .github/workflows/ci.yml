@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -28,7 +29,9 @@ jobs:
   #   HETZNER_SERVER_HOST, HETZNER_SSH_PRIVATE_KEY, HETZNER_ENV (full production .env)
   deploy:
     needs: ci
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && secrets.HETZNER_SSH_PRIVATE_KEY != ''
     runs-on: ubuntu-latest
     environment: production
     steps:
