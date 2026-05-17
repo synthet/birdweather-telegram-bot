@@ -1,11 +1,13 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { RequestHandler } from 'express';
 
+// Random key used only in this process lifetime — prevents length-leaking via HMAC digest comparison.
+const HMAC_KEY = randomBytes(32);
+
 export function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
+  const digestA = createHmac('sha256', HMAC_KEY).update(a).digest();
+  const digestB = createHmac('sha256', HMAC_KEY).update(b).digest();
+  return timingSafeEqual(digestA, digestB);
 }
 
 export function bearerAuthMiddleware(expectedToken: string): RequestHandler {
