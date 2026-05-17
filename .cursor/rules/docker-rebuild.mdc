@@ -1,0 +1,52 @@
+---
+description: Rebuild local Docker only when the user explicitly wants local dev/testing
+alwaysApply: true
+---
+
+# Local Docker rebuild (explicit request only)
+
+This bot can run in Docker via `docker compose` on a **developer machine**. That is **not** the production deploy path — see `.cursor/rules/hetzner-deploy.mdc`.
+
+Do **not** rebuild or redeploy local Docker unless the user explicitly asks for local Docker (e.g. local testing, "rebuild on my machine").
+
+## When a local rebuild is needed
+
+After changes to any of:
+
+- `src/**` (compiled into `dist/` in the image)
+- `package.json` or `package-lock.json`
+- `tsconfig.json`
+- `Dockerfile` or `docker-compose.yml`
+- `.env.example` when new **required** env vars are added (document in `.env`; user must set values)
+
+A rebuild is **not** required for docs-only edits, test-only files under `src/tests/`, or formatting/lint config that does not change production dependencies or `src/`.
+
+## How to rebuild locally (preserve data)
+
+`./data` is bind-mounted; never delete it. Prefer the redeploy scripts (stop → SQLite backup → build → recreate):
+
+**Windows (PowerShell):**
+
+```powershell
+.\scripts\docker-redeploy.ps1
+```
+
+**Git Bash / WSL / Linux:**
+
+```bash
+bash scripts/docker-redeploy.sh
+```
+
+For a first local bring-up or when no DB backup is needed:
+
+```bash
+docker compose up --build -d
+```
+
+After rebuild, verify with `docker compose ps` and `docker compose logs -f bot` if the user cares about runtime behavior.
+
+## Agent workflow
+
+1. Run local rebuild scripts only when the user asked for local Docker.
+2. For production or generic "deploy" requests, use Hetzner (`hetzner-deploy.mdc`), not these scripts.
+3. Never stage or commit `.env`, `data/`, or secrets when preparing commits (see `no-secrets-in-git`).

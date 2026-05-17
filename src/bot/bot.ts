@@ -2,7 +2,7 @@ import { Telegraf } from 'telegraf';
 import { env } from '../config/env.js';
 import { db } from '../db/client.js';
 import { formatStation } from './formatters/stations.js';
-import { formatDetectionHtml } from './formatters/detections.js';
+import { sendDetection } from './sendDetection.js';
 import { formatSpecies } from './formatters/species.js';
 import {
   fetchRecentDetections,
@@ -117,12 +117,19 @@ bot.command('recent', async (ctx) => {
   }
   try {
     const list = await fetchRecentDetections(ctx.chat.id, id, 10);
-    return ctx.reply(
-      list.length
-        ? list.map((d) => formatDetectionHtml(d)).join('\n\n──────────\n\n')
-        : 'No detections found',
-      { parse_mode: 'HTML', link_preview_options: { is_disabled: true } },
-    );
+    if (!list.length) return ctx.reply('No detections found');
+
+    const settings = db
+      .prepare('SELECT include_soundscape_links FROM chat_settings WHERE chat_id=?')
+      .get(ctx.chat.id) as { include_soundscape_links: number } | undefined;
+    const includeSoundscape = settings?.include_soundscape_links !== 0;
+
+    for (const d of list) {
+      await sendDetection(ctx.telegram, ctx.chat.id, d, {
+        includeSoundscapeLink: includeSoundscape,
+      });
+    }
+    return;
   } catch (e) {
     return ctx.reply(asErrorMessage(e));
   }

@@ -1,4 +1,5 @@
 import type { Detection } from '../../birdweather/types.js';
+import type { MergedDetectionMetrics, NumericSummary } from './detectionMetrics.js';
 import { formatDetectionTime } from '../../utils/dates.js';
 import { formatAsPercent, formatScore } from '../../utils/numbers.js';
 import { escapeTelegramHtml, telegramHtmlLink } from '../../utils/telegramHtml.js';
@@ -6,13 +7,43 @@ import { stationBirdweatherUrl } from '../../utils/stationId.js';
 import { Markup } from 'telegraf';
 import type { InlineKeyboardMarkup } from 'telegraf/types';
 
+export type { MergedDetectionMetrics, NumericSummary } from './detectionMetrics.js';
+
 export interface DetectionFormatOptions {
   /** Shown above the species block (e.g. "New detection"). */
   title?: string;
   includeSoundscapeLink?: boolean;
+  /** When multiple detections were merged for one alert. */
+  mergedMetrics?: MergedDetectionMetrics;
 }
 
-function formatMetrics(d: Detection): string | null {
+function formatSummaryMetric(
+  label: string,
+  summary: NumericSummary,
+  formatValue: (value: number) => string,
+): string {
+  const avg = formatValue(summary.avg);
+  if (summary.min !== summary.max) {
+    return `${label} ${formatValue(summary.min)}–${formatValue(summary.max)} (avg ${avg})`;
+  }
+  return `${label} ${avg} (avg)`;
+}
+
+function formatMetrics(d: Detection, merged?: MergedDetectionMetrics): string | null {
+  if (merged && merged.count > 1) {
+    const parts = [
+      merged.score ? formatSummaryMetric('Score', merged.score, formatScore) : null,
+      merged.confidence
+        ? formatSummaryMetric('Confidence', merged.confidence, formatAsPercent)
+        : null,
+      merged.probability
+        ? formatSummaryMetric('Probability', merged.probability, formatAsPercent)
+        : null,
+      `${merged.count} detections`,
+    ].filter((p): p is string => p != null);
+    return parts.length ? parts.join(' · ') : null;
+  }
+
   const parts = [
     d.score != null ? `Score ${formatScore(d.score)}` : null,
     d.confidence != null ? `Confidence ${formatAsPercent(d.confidence)}` : null,
@@ -56,7 +87,7 @@ export function formatDetectionHtml(
     lines.push(when);
   }
 
-  const metrics = formatMetrics(d);
+  const metrics = formatMetrics(d, options.mergedMetrics);
   if (metrics) lines.push(metrics);
 
   if (d.rarityNote) lines.push(escapeTelegramHtml(d.rarityNote));

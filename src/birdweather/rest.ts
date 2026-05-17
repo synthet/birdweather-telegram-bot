@@ -8,6 +8,10 @@ interface RestSpecies {
   scientific_name?: string;
   commonName?: string;
   scientificName?: string;
+  image_url?: string;
+  thumbnail_url?: string;
+  imageUrl?: string;
+  thumbnailUrl?: string;
 }
 
 interface RestDetection {
@@ -25,10 +29,14 @@ interface RestDetection {
 function mapSpecies(s: RestSpecies): Species {
   const commonName = s.commonName ?? s.common_name;
   const scientificName = s.scientificName ?? s.scientific_name;
+  const imageUrl = s.imageUrl ?? s.image_url;
+  const thumbnailUrl = s.thumbnailUrl ?? s.thumbnail_url;
   return {
     ...(s.id != null ? { id: String(s.id) } : {}),
     commonName: commonName ?? 'Unknown',
     scientificName: scientificName ?? 'Unknown',
+    ...(imageUrl ? { imageUrl } : {}),
+    ...(thumbnailUrl ? { thumbnailUrl } : {}),
   };
 }
 

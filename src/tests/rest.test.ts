@@ -66,4 +66,31 @@ describe('fetchStationDetections mapping', () => {
     expect(detections[0]?.species.commonName).toBe('Turkey Vulture');
     expect(detections[0]?.species.scientificName).toBe('Cathartes aura');
   });
+
+  it('maps species image URLs', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          success: true,
+          detections: [
+            {
+              id: 3,
+              species: {
+                common_name: 'Robin',
+                scientific_name: 'Turdus migratorius',
+                thumbnail_url: 'https://media.birdweather.com/thumb.jpg',
+                image_url: 'https://media.birdweather.com/full.jpg',
+              },
+            },
+          ],
+        }),
+      }),
+    );
+
+    const detections = await fetchStationDetections('token', 1);
+    expect(detections[0]?.species.thumbnailUrl).toBe('https://media.birdweather.com/thumb.jpg');
+    expect(detections[0]?.species.imageUrl).toBe('https://media.birdweather.com/full.jpg');
+  });
 });

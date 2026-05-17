@@ -2,6 +2,10 @@ export interface Species {
   id?: string;
   commonName: string;
   scientificName: string;
+  /** ~400×400 species reference photo (preferred for Telegram alerts). */
+  imageUrl?: string;
+  /** ~100×100 species reference photo. */
+  thumbnailUrl?: string;
   birdweatherUrl?: string;
   ebirdUrl?: string;
   ebirdSpeciesCode?: string;

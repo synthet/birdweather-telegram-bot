@@ -74,6 +74,27 @@ describe('formatDetectionHtml', () => {
     expect(msg).not.toContain('May 17, 2026, 2:53');
   });
 
+  it('shows score and confidence ranges with averages when detections were merged', () => {
+    const msg = formatDetectionHtml(
+      {
+        id: '1',
+        score: 7.8,
+        confidence: 0.96,
+        species: { commonName: 'Robin', scientificName: 'Turdus migratorius' },
+      },
+      {
+        mergedMetrics: {
+          count: 3,
+          score: { min: 6.2, max: 7.8, avg: 7.1 },
+          confidence: { min: 0.85, max: 0.96, avg: 0.91 },
+        },
+      },
+    );
+    expect(msg).toContain('Score 6.2–7.8 (avg 7.1)');
+    expect(msg).toContain('Confidence 85%–96% (avg 91%)');
+    expect(msg).toContain('3 detections');
+  });
+
   it('omits soundscape link when disabled', () => {
     const msg = formatDetectionHtml(
       {

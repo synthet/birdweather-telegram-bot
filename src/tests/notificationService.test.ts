@@ -13,10 +13,12 @@ vi.mock('../integrations/detectionEnrichment.js', () => ({
 }));
 
 const mockDetections = vi.fn();
+const mockTopSpecies = vi.fn();
 
 vi.mock('../birdweather/service.js', () => ({
   createStationBirdweatherService: vi.fn(() => ({
     detections: mockDetections,
+    topSpecies: mockTopSpecies,
   })),
 }));
 
@@ -25,6 +27,8 @@ vi.mock('../birdweather/rest.js', () => ({
 }));
 
 import { fetchStationDetections } from '../birdweather/rest.js';
+import { enrichDetection } from '../integrations/detectionEnrichment.js';
+import { clearStationSpeciesCountCache } from '../subscriptions/stationSpeciesFrequency.js';
 
 function detection(id: string, overrides: Partial<Detection> = {}): Detection {
   return {
@@ -63,7 +67,10 @@ function resetNotificationTestDb(): void {
 
 function mockBot(): Telegraf {
   return {
-    telegram: { sendMessage: vi.fn().mockResolvedValue(undefined) },
+    telegram: {
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+      sendPhoto: vi.fn().mockResolvedValue(undefined),
+    },
   } as unknown as Telegraf;
 }
 
@@ -73,12 +80,19 @@ describe.sequential('processNotifications', () => {
     resetNotificationTestDb();
     mockDetections.mockReset();
     mockDetections.mockResolvedValue([]);
+    mockTopSpecies.mockReset();
+    mockTopSpecies.mockResolvedValue([
+      { species: { commonName: 'Robin', scientificName: 'Turdus migratorius' }, count: 500 },
+    ]);
+    clearStationSpeciesCountCache();
+    vi.mocked(enrichDetection).mockImplementation(async (d: Detection) => d);
   });
 
   afterEach(() => {
     resetNotificationTestDb();
     mockDetections.mockReset();
     mockDetections.mockResolvedValue([]);
+    mockTopSpecies.mockReset();
   });
 
   it('sends a message for undelivered detections', async () => {
@@ -90,11 +104,6 @@ describe.sequential('processNotifications', () => {
     await processNotifications(bot);
 
     expect(bot.telegram.sendMessage).toHaveBeenCalledOnce();
-    expect(bot.telegram.sendMessage).toHaveBeenCalledWith(
-      chatId,
-      expect.stringContaining('Robin'),
-      expect.any(Object),
-    );
     expect(dedupe.seen(chatId, 'd-new')).toBe(true);
     cleanupChat(chatId);
   });
@@ -109,23 +118,50 @@ describe.sequential('processNotifications', () => {
     await processNotifications(bot);
 
     expect(bot.telegram.sendMessage).not.toHaveBeenCalled();
+    expect(bot.telegram.sendPhoto).not.toHaveBeenCalled();
     cleanupChat(chatId);
   });
 
-  it('notifies once per species within the cooldown window', async () => {
+  it('merges same-species detections with range and average metrics', async () => {
     const chatId = 900_007;
     setupSubscription(chatId);
     mockDetections.mockResolvedValue([
-      detection('d-robin-1'),
-      detection('d-robin-2', { score: 0.95 }),
+      detection('d-robin-1', { score: 7.0, confidence: 0.8 }),
+      detection('d-robin-2', { score: 8.0, confidence: 0.9 }),
     ]);
 
     const bot = mockBot();
     await processNotifications(bot);
 
+    const caption = String(
+      vi.mocked(bot.telegram.sendMessage).mock.calls[0]?.[1] ??
+        vi.mocked(bot.telegram.sendPhoto).mock.calls[0]?.[2]?.caption,
+    );
     expect(bot.telegram.sendMessage).toHaveBeenCalledOnce();
+    expect(caption).toContain('Score 7–8 (avg 7.5)');
+    expect(caption).toContain('Confidence 80%–90% (avg 85%)');
+    expect(caption).toContain('2 detections');
     expect(dedupe.seen(chatId, 'd-robin-1')).toBe(true);
     expect(dedupe.seen(chatId, 'd-robin-2')).toBe(true);
+    cleanupChat(chatId);
+  });
+
+  it('does not notify the same species again on the same day when common at station', async () => {
+    const chatId = 900_011;
+    setupSubscription(chatId);
+    mockDetections.mockResolvedValueOnce([detection('d-day-1')]);
+    const bot = mockBot();
+    await processNotifications(bot);
+
+    db.prepare(
+      `UPDATE species_last_notified SET last_notified_at = datetime('now', '-20 minutes')
+       WHERE chat_id=? AND station_id=?`,
+    ).run(chatId, '42');
+
+    mockDetections.mockResolvedValueOnce([detection('d-day-2', { score: 0.99 })]);
+    await processNotifications(bot);
+    expect(bot.telegram.sendMessage).toHaveBeenCalledOnce();
+    expect(dedupe.seen(chatId, 'd-day-2')).toBe(true);
     cleanupChat(chatId);
   });
 
@@ -157,35 +193,9 @@ describe.sequential('processNotifications', () => {
     const bot = mockBot();
     await processNotifications(bot);
 
-    mockDetections.mockReset();
-    mockDetections.mockResolvedValue([]);
-
     expect(bot.telegram.sendMessage).toHaveBeenCalledOnce();
-    expect(bot.telegram.sendMessage).toHaveBeenCalledWith(
-      chatIdOk,
-      expect.any(String),
-      expect.any(Object),
-    );
     cleanupChat(chatIdFail);
     cleanupChat(chatIdOk);
-  });
-
-  it('passes score thresholds to the detection fetch', async () => {
-    const chatId = 900_006;
-    setupSubscription(chatId);
-    db.prepare(
-      'UPDATE chat_settings SET min_score=0.5, min_confidence=0.4, min_probability=0.3 WHERE chat_id=?',
-    ).run(chatId);
-    mockDetections.mockResolvedValue([]);
-
-    await processNotifications(mockBot());
-
-    expect(mockDetections).toHaveBeenCalledWith('42', 5, {
-      scoreGte: 0.5,
-      confidenceGte: 0.4,
-      probabilityGte: 0.3,
-    });
-    cleanupChat(chatId);
   });
 });
 

@@ -2,15 +2,16 @@ import { Telegraf } from 'telegraf';
 import { db } from '../db/client.js';
 import { getAccount } from '../db/accounts.js';
 import { applyDetectionFilters } from '../bot/birdweatherContext.js';
+import type { Detection } from '../birdweather/types.js';
 import { createStationBirdweatherService } from '../birdweather/service.js';
 import { enrichDetection } from '../integrations/detectionEnrichment.js';
+import { sendDetection } from '../bot/sendDetection.js';
 import { dedupe } from './dedupe.js';
+import { summarizeDetectionMetrics } from './mergedDetectionMetrics.js';
+import { pickBestDetection } from './pickBestDetection.js';
 import { speciesKey } from './speciesKey.js';
 import { isSpeciesOnCooldown, recordSpeciesNotified } from './speciesCooldown.js';
-import {
-  detectionReplyMarkup,
-  formatDetectionHtml,
-} from '../bot/formatters/detections.js';
+import { shouldNotifySpecies } from './speciesNotifyPolicy.js';
 import { logger } from '../utils/logging.js';
 import {
   NOTIFICATION_FETCH_LIMIT,
@@ -52,32 +53,44 @@ async function processSubscription(bot: Telegraf, s: ActiveSubscription): Promis
     .get(s.chat_id) as { include_soundscape_links: number } | undefined;
   const includeSoundscape = settings?.include_soundscape_links !== 0;
 
-  for (const d of detections.reverse()) {
+  const pendingBySpecies = new Map<string, Detection[]>();
+  for (const d of detections) {
     if (dedupe.seen(s.chat_id, d.id)) continue;
-
     const key = speciesKey(d.species);
+    const group = pendingBySpecies.get(key) ?? [];
+    group.push(d);
+    pendingBySpecies.set(key, group);
+  }
+
+  for (const [key, group] of pendingBySpecies) {
     if (isSpeciesOnCooldown(s.chat_id, s.station_id, key)) {
-      dedupe.mark(s.chat_id, s.station_id, d.id);
+      for (const d of group) dedupe.mark(s.chat_id, s.station_id, d.id);
       continue;
     }
 
-    const enriched = await enrichDetection(d, {
+    const best = pickBestDetection(group);
+    const enriched = await enrichDetection(best, {
       stationId: s.station_id,
       chatId: s.chat_id,
       includeRarity: true,
     });
-    await bot.telegram.sendMessage(
-      s.chat_id,
-      formatDetectionHtml(enriched, {
-        includeSoundscapeLink: includeSoundscape,
-      }),
-      {
-        parse_mode: 'HTML',
-        link_preview_options: { is_disabled: true },
-        reply_markup: detectionReplyMarkup(enriched, includeSoundscape),
-      },
-    );
-    dedupe.mark(s.chat_id, s.station_id, d.id);
+
+    const notify = await shouldNotifySpecies(enriched, {
+      chatId: s.chat_id,
+      stationId: s.station_id,
+      service,
+      timeZone: enriched.station?.timezone,
+    });
+    if (!notify) {
+      for (const d of group) dedupe.mark(s.chat_id, s.station_id, d.id);
+      continue;
+    }
+
+    await sendDetection(bot.telegram, s.chat_id, enriched, {
+      includeSoundscapeLink: includeSoundscape,
+      mergedMetrics: group.length > 1 ? summarizeDetectionMetrics(group) : undefined,
+    });
+    for (const d of group) dedupe.mark(s.chat_id, s.station_id, d.id);
     recordSpeciesNotified(s.chat_id, s.station_id, key);
   }
 }

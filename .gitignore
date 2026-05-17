@@ -2,7 +2,13 @@ node_modules
 dist
 .env
 .tools/
-.cursor/
+.cursor/*
+!.cursor/skills/
+!.cursor/skills/**
+!.cursor/commands/
+!.cursor/commands/**
+!.cursor/rules/
+!.cursor/rules/**
 data/*.sqlite
 data/backups/
 coverage

@@ -20,6 +20,25 @@ function isValidTimeZone(timeZone: string): boolean {
 
 export const formatIso = (iso?: string | null): string => (iso ? new Date(iso).toLocaleString() : 'N/A');
 
+/** Calendar date (YYYY-MM-DD) in the station timezone, or UTC when unknown. */
+export function stationCalendarDay(timeZone?: string | null, at: Date = new Date()): string {
+  const zone = timeZone && isValidTimeZone(timeZone) ? timeZone : 'UTC';
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: zone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(at);
+}
+
+export function parseSqliteTimestamp(ts: string): Date {
+  if (ts.includes('T')) {
+    const hasZone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(ts);
+    return new Date(hasZone ? ts : `${ts}Z`);
+  }
+  return new Date(`${ts.replace(' ', 'T')}Z`);
+}
+
 /** Formats a detection instant in the station IANA timezone (falls back to UTC). */
 export function formatDetectionTime(
   iso?: string | null,

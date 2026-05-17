@@ -1,0 +1,46 @@
+---
+description: Deploy to Hetzner production by default; do not use local Docker unless asked
+alwaysApply: true
+---
+
+# Production deploys go to Hetzner
+
+The live bot runs on a **Hetzner** host. Treat that as the default target when the user wants changes running in production or asks to "deploy", "redeploy", or "ship".
+
+## Do not deploy to local Docker by default
+
+Unless the user **explicitly** asks for local Docker (e.g. "rebuild locally", "docker compose on my machine", "test in local Docker"):
+
+- Do **not** run `docker compose up`, `docker-redeploy.sh`, or `docker-redeploy.ps1`
+- Do **not** offer or perform a local container rebuild as the completion step for a feature or fix
+- Local Docker is for intentional local dev/testing only
+
+## Default deploy path
+
+Use `scripts/deploy-hetzner.sh` after meaningful changes under `src/`, `package.json`, `Dockerfile`, `docker-compose.yml`, or required env vars:
+
+```bash
+# Required: HETZNER_SERVER_HOST (and SSH access to the server)
+export HETZNER_SERVER_HOST=your.server.ip
+# Optional: HETZNER_SERVER_USER (default root), HETZNER_REMOTE_DIR, SYNC_DB=1
+bash scripts/deploy-hetzner.sh
+```
+
+- Uploads a tarball + `.env` (default `ENV_FILE=.env`; never commit or log secrets)
+- Rebuilds with `docker compose` **on the server** at `HETZNER_REMOTE_DIR` (default `/opt/birdweather-telegram-bot`)
+- Set `SYNC_DB=1` only when intentionally pushing local SQLite to production
+
+**CI:** pushes to `main` can deploy via GitHub Actions when Hetzner secrets are configured (see `.github/workflows/ci.yml`).
+
+**Windows:** run `deploy-hetzner.sh` from Git Bash or WSL, or use operator scripts under `docs/local/scripts/` if documented locally — still Hetzner, not local Docker.
+
+## Agent workflow
+
+1. After code that affects the running bot, deploy to Hetzner (script above or remind the user to push to `main` for CI) — **not** local Docker.
+2. Verify remotely when it matters: `ssh user@host 'cd /opt/birdweather-telegram-bot && docker compose ps'` and `docker compose logs -f bot`.
+3. Deploy once when the task is complete; do not redeploy on every small edit.
+4. Follow `no-secrets-in-git` for `.env` and `data/`.
+
+## When local Docker is OK
+
+Only when the user clearly wants local Docker: then follow `.cursor/rules/docker-rebuild.mdc` for rebuild steps on the workstation.

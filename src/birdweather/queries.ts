@@ -69,6 +69,8 @@ export const DETECTIONS_QUERY = gql`
         species {
           commonName
           scientificName
+          imageUrl
+          thumbnailUrl
           birdweatherUrl
           ebirdUrl
           wikipediaUrl
