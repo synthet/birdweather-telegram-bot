@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS chat_settings (
   min_probability REAL DEFAULT 0,
   include_soundscape_links INTEGER DEFAULT 1,
   paused INTEGER DEFAULT 0,
+  ebird_region_override TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -32,5 +33,41 @@ CREATE INDEX IF NOT EXISTS idx_station_subscriptions_chat_id ON station_subscrip
 CREATE INDEX IF NOT EXISTS idx_station_subscriptions_station_id ON station_subscriptions(station_id);
 CREATE INDEX IF NOT EXISTS idx_delivered_detection_id ON delivered_detections(detection_id);
 CREATE INDEX IF NOT EXISTS idx_delivered_at ON delivered_detections(delivered_at);
+CREATE TABLE IF NOT EXISTS birdweather_accounts (
+  chat_id INTEGER PRIMARY KEY,
+  station_id TEXT NOT NULL,
+  station_token TEXT NOT NULL,
+  station_name TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS station_geo (
+  station_id TEXT PRIMARY KEY,
+  lat REAL,
+  lng REAL,
+  location_privacy INTEGER DEFAULT 0,
+  country TEXT,
+  state TEXT,
+  ebird_region_code TEXT,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS registration_sessions (
+  chat_id INTEGER PRIMARY KEY,
+  step TEXT NOT NULL,
+  station_token TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
   `);
+  migrateColumns();
+}
+
+function columnExists(table: string, column: string): boolean {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  return cols.some((c) => c.name === column);
+}
+
+function migrateColumns(): void {
+  if (!columnExists('chat_settings', 'ebird_region_override')) {
+    db.exec('ALTER TABLE chat_settings ADD COLUMN ebird_region_override TEXT');
+  }
 }

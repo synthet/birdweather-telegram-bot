@@ -1,7 +1,14 @@
 services:
   bot:
     build: .
-    env_file: .env
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: file:./data/birdweather-bot.sqlite
+    ports:
+      - "${MCP_PORT:-3001}:3001"
     volumes:
       - ./data:/app/data
     restart: unless-stopped
