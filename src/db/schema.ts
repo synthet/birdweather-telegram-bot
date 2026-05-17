@@ -65,6 +65,18 @@ CREATE TABLE IF NOT EXISTS registration_sessions (
   station_token TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS inat_auth (
+  telegram_user_id INTEGER PRIMARY KEY,
+  chat_id INTEGER,
+  inat_user_id INTEGER,
+  inat_login TEXT,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  token_expires_at TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_inat_auth_chat_id ON inat_auth(chat_id);
   `);
   migrateColumns();
 }
@@ -77,5 +89,20 @@ function columnExists(table: string, column: string): boolean {
 function migrateColumns(): void {
   if (!columnExists('chat_settings', 'ebird_region_override')) {
     db.exec('ALTER TABLE chat_settings ADD COLUMN ebird_region_override TEXT');
+  }
+  if (!columnExists('inat_auth', 'chat_id')) {
+    db.exec('ALTER TABLE inat_auth ADD COLUMN chat_id INTEGER');
+  }
+  if (!columnExists('inat_auth', 'inat_user_id')) {
+    db.exec('ALTER TABLE inat_auth ADD COLUMN inat_user_id INTEGER');
+  }
+  if (!columnExists('inat_auth', 'inat_login')) {
+    db.exec('ALTER TABLE inat_auth ADD COLUMN inat_login TEXT');
+  }
+  if (!columnExists('inat_auth', 'refresh_token')) {
+    db.exec('ALTER TABLE inat_auth ADD COLUMN refresh_token TEXT');
+  }
+  if (!columnExists('inat_auth', 'token_expires_at')) {
+    db.exec('ALTER TABLE inat_auth ADD COLUMN token_expires_at TEXT');
   }
 }
