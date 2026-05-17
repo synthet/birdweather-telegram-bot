@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach } from 'vitest';
 import { enrichSpecies } from '../ebird/enrich.js';
 import { clearTaxonomyCache, seedTaxonomyForTest } from '../ebird/taxonomy.js';
 

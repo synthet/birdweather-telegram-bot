@@ -26,6 +26,8 @@ import { isEbirdEnabled } from '../ebird/config.js';
 import { getAccount, hasActiveSubscription } from '../db/accounts.js';
 import { stationBirdweatherUrl } from '../utils/stationId.js';
 import { promoteEditedBotCommands } from './editedCommandMiddleware.js';
+import { setupInatCommands } from './inatCommands.js';
+import { logger } from '../utils/logging.js';
 
 export const bot = new Telegraf(env.TELEGRAM_BOT_TOKEN);
 bot.use(promoteEditedBotCommands);
@@ -50,6 +52,9 @@ const HELP_TEXT = [
   '/set_probability <num> — min probability (0.5 or 50%)',
   '/pause',
   '/resume',
+  '/inat_connect — link your iNaturalist account (private chat only)',
+  '/inat_status — show iNaturalist link state and token validity',
+  '/inat_disconnect — remove iNaturalist link and stored tokens (private chat only)',
   ...(isEbirdEnabled()
     ? [
         '/ebird_recent — recent eBird reports near your station',
@@ -62,6 +67,7 @@ const HELP_TEXT = [
 
 setupRegistration(bot);
 setupEbirdCommands(bot);
+setupInatCommands(bot);
 
 bot.command('start', (ctx) =>
   ctx.reply(
@@ -288,5 +294,5 @@ bot.command('resume', (ctx) => {
 
 bot.catch((err, ctx) => {
   void ctx.reply('Something went wrong. Please try again.');
-  console.error(err);
+  logger.error({ err }, 'unhandled bot error');
 });

@@ -6,6 +6,6 @@ export interface Connection<T> {
 export function connectionNodes<T>(connection: Connection<T> | T[] | null | undefined): T[] {
   if (!connection) return [];
   if (Array.isArray(connection)) return connection;
-  if (connection.nodes?.length) return connection.nodes;
+  if (connection.nodes !== undefined) return connection.nodes;
   return connection.edges?.map((e) => e.node) ?? [];
 }
