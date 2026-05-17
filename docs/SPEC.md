@@ -128,7 +128,7 @@ Transports:
 - Telegram webhook mode (long-polling only).
 - BirdWeather GraphQL live `newDetection` subscription transport.
 - Multi-station per user (one linked account; multiple subscriptions possible but notifications require account station match).
-- xeno-canto, iNaturalist, GBIF, Nuthatch (see [ROADMAP.md](./ROADMAP.md)).
+- xeno-canto, iNaturalist, GBIF, Nuthatch (planned; not implemented).
 
 ## Acceptance criteria (implemented)
 

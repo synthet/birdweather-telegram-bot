@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatAsPercent, formatScore } from '../utils/numbers.js';
+import { formatAsPercent, formatScore, formatScoreThreshold } from '../utils/numbers.js';
 
 describe('formatScore', () => {
   it('formats API scores without a percent sign', () => {
@@ -7,6 +7,13 @@ describe('formatScore', () => {
     expect(formatScore(8.19)).toBe('8.2');
     expect(formatScore(8)).toBe('8');
     expect(formatScore(null)).toBe('—');
+  });
+});
+
+describe('formatScoreThreshold', () => {
+  it('always shows one decimal', () => {
+    expect(formatScoreThreshold(7)).toBe('7.0');
+    expect(formatScoreThreshold(7.75)).toBe('7.8');
   });
 });
 

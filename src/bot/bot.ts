@@ -12,7 +12,12 @@ import {
 } from './birdweatherContext.js';
 import { setupRegistration } from './registration.js';
 import { asErrorMessage } from '../utils/errors.js';
-import { parseCommandNumber } from '../utils/commandArgs.js';
+import { parseCommandNumber, parseFractionOrPercent } from '../utils/commandArgs.js';
+import {
+  formatAsPercent,
+  formatScoreThreshold,
+  normalizeScoreThreshold,
+} from '../utils/numbers.js';
 import { getChatDetectionFilters, seedDeliveredDetections } from '../subscriptions/seeding.js';
 import { refreshStationNameForChat } from './stationMetadata.js';
 import { cacheStationGeo, refreshStationGeoFromGraphql } from './stationGeoRefresh.js';
@@ -20,8 +25,10 @@ import { setupEbirdCommands } from './ebirdCommands.js';
 import { isEbirdEnabled } from '../ebird/config.js';
 import { getAccount, hasActiveSubscription } from '../db/accounts.js';
 import { stationBirdweatherUrl } from '../utils/stationId.js';
+import { promoteEditedBotCommands } from './editedCommandMiddleware.js';
 
 export const bot = new Telegraf(env.TELEGRAM_BOT_TOKEN);
+bot.use(promoteEditedBotCommands);
 const ensureSettings = (chatId: number) =>
   db.prepare('INSERT OR IGNORE INTO chat_settings(chat_id) VALUES(?)').run(chatId);
 
@@ -38,9 +45,9 @@ const HELP_TEXT = [
   '/unsubscribe_station <id>',
   '/subscriptions',
   '/settings',
-  '/set_score <num>',
-  '/set_confidence <num>',
-  '/set_probability <num>',
+  '/set_score <num> — min detection score (typically 0–10)',
+  '/set_confidence <num> — min confidence (0.62 or 62%)',
+  '/set_probability <num> — min probability (0.5 or 50%)',
   '/pause',
   '/resume',
   ...(isEbirdEnabled()
@@ -228,19 +235,42 @@ bot.command('settings', (ctx) => {
     ? `\nebird region override=${(s as { ebird_region_override?: string | null }).ebird_region_override ?? 'none'}`
     : '';
   return ctx.reply(
-    `${linkLine}score>=${s.min_score}\nconfidence>=${s.min_confidence}\nprobability>=${s.min_probability}\ninclude soundscape=${!!s.include_soundscape_links}\npaused=${!!s.paused}${ebirdLine}`,
+    `${linkLine}score>=${formatScoreThreshold(s.min_score)}\nconfidence>=${formatAsPercent(s.min_confidence)}\nprobability>=${formatAsPercent(s.min_probability)}\ninclude soundscape=${!!s.include_soundscape_links}\npaused=${!!s.paused}${ebirdLine}`,
   );
 });
+
+const SET_THRESHOLD_USAGE = {
+  score: 'Usage: /set_score <number> (detection score, typically 0–10)',
+  confidence: 'Usage: /set_confidence <number> (0–1 or percent, e.g. 0.62 or 62%)',
+  probability: 'Usage: /set_probability <number> (0–1 or percent, e.g. 0.5 or 50%)',
+} as const;
+
+function parseThreshold(
+  field: 'score' | 'confidence' | 'probability',
+  payload: string,
+): number | undefined {
+  if (field === 'score') return parseCommandNumber(payload);
+  return parseFractionOrPercent(payload);
+}
+
+function formatThresholdDisplay(
+  field: 'score' | 'confidence' | 'probability',
+  stored: number,
+): string {
+  if (field === 'score') return formatScoreThreshold(stored);
+  return formatAsPercent(stored);
+}
 
 for (const field of ['score', 'confidence', 'probability'] as const) {
   bot.command(`set_${field}`, (ctx) => {
     ensureSettings(ctx.chat.id);
-    const n = parseCommandNumber(ctx.payload);
-    if (n === undefined) return ctx.reply(`Usage: /set_${field} <number>`);
+    const n = parseThreshold(field, ctx.payload);
+    if (n === undefined) return ctx.reply(SET_THRESHOLD_USAGE[field]);
+    const stored = field === 'score' ? normalizeScoreThreshold(n) : n;
     db.prepare(
       `UPDATE chat_settings SET min_${field}=?, updated_at=CURRENT_TIMESTAMP WHERE chat_id=?`,
-    ).run(n, ctx.chat.id);
-    return ctx.reply(`Updated ${field} threshold to ${n}`);
+    ).run(stored, ctx.chat.id);
+    return ctx.reply(`Updated ${field} threshold to ${formatThresholdDisplay(field, stored)}`);
   });
 }
 

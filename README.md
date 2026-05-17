@@ -18,18 +18,16 @@ Detailed specs and architecture: **[docs/](./docs/)**
 - [Product spec](./docs/SPEC.md) — commands, auth, notifications
 - [Architecture](./docs/ARCHITECTURE.md) — modules, APIs, data model
 - [Operations](./docs/OPERATIONS.md) — env, Docker, MCP, BotFather
-- [Roadmap](./docs/ROADMAP.md) — planned integrations
-- [History](./docs/HISTORY.md) — chat-driven change log
 
-Local-only ops (Hetzner deploy, server details): `docs/local/` — gitignored; not in the public repo.
+Maintainer-only notes (deployment, roadmap, session history): `docs/local/` — gitignored; not in the public repo.
 
 ## Env vars (summary)
 
 | Variable | Purpose |
 |----------|---------|
 | `TELEGRAM_BOT_TOKEN` | Required |
-| `BIRDWEATHER_API_TOKEN` | Optional; owner-only `/stations`, `/species` |
-| `BOT_OWNER_TELEGRAM_ID` | Required when API token is set |
+| `BIRDWEATHER_API_TOKEN` | Optional; MCP public catalog tools (`search_stations`, `search_species`) |
+| `BIRDWEATHER_STATION_TOKEN`, `BIRDWEATHER_STATION_ID` | Optional; MCP station-scoped tools |
 | `EBIRD_API_TOKEN` | Optional; eBird commands + rarity/links |
 | `SPECIES_NOTIFY_COOLDOWN_MINUTES` | Optional; default 15 |
 | `MCP_AUTH_TOKEN`, `MCP_PORT` | Optional; HTTP MCP with bot |
@@ -38,7 +36,9 @@ Full list: `.env.example` and [docs/OPERATIONS.md](./docs/OPERATIONS.md).
 
 ## Commands (summary)
 
-`/register`, `/account`, `/unregister`, `/start`, `/help`, `/station`, `/stations`, `/recent`, `/species`, `/top`, `/subscribe_station`, `/unsubscribe_station`, `/subscriptions`, `/settings`, `/set_score`, `/set_confidence`, `/set_probability`, `/pause`, `/resume`, `/ebird_recent`, `/ebird_notable`, `/ebird_region`, `/set_ebird_region`.
+`/register`, `/account`, `/unregister`, `/cancel`, `/start`, `/help`, `/station`, `/stations`, `/recent`, `/species`, `/top`, `/subscribe_station`, `/unsubscribe_station`, `/subscriptions`, `/settings`, `/set_score`, `/set_confidence`, `/set_probability`, `/pause`, `/resume`, `/ebird_recent`, `/ebird_notable`, `/ebird_region`, `/set_ebird_region`.
+
+`/stations` and `/species` use your linked station token (run `/register` first).
 
 ## Architecture (summary)
 
@@ -69,7 +69,11 @@ SQLite data is stored in `./data` on the host. Redeploy with backup:
 | `pnpm test` | Vitest |
 | `pnpm mcp:stdio` | MCP over stdio |
 | `pnpm mcp:http` | MCP HTTP only (dev) |
-| `scripts/docker-redeploy.ps1` | Local Docker redeploy with DB backup |
+| `scripts/docker-redeploy.ps1` | Local Docker redeploy with DB backup (PowerShell) |
+| `scripts/docker-redeploy.sh` | Same redeploy flow (Bash) |
+| `scripts/deploy-hetzner.sh` | Production deploy to Hetzner (`HETZNER_SERVER_HOST`, SSH key, `.env`; CI on `main`) |
+
+See [scripts/README.md](./scripts/README.md) for which scripts are public vs maintainer-only (`docs/local/scripts/`).
 
 ## Limitations
 
@@ -77,4 +81,4 @@ SQLite data is stored in `./data` on the host. Redeploy with backup:
 - One linked BirdWeather station per Telegram chat.
 - Relies on BirdWeather and eBird API compatibility.
 
-See [docs/ROADMAP.md](./docs/ROADMAP.md) for planned improvements.
+Planned integrations (xeno-canto, live GraphQL subscription, webhook mode, etc.) are tracked in the maintainer `docs/local/ROADMAP.md` when present.

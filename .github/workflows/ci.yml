@@ -1,5 +1,10 @@
 name: CI
-on: [push, pull_request]
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -15,3 +20,34 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+
+  # Push to main only (not PRs). Configure repository secrets:
+  #   HETZNER_SERVER_HOST, HETZNER_SSH_PRIVATE_KEY, HETZNER_ENV (full production .env)
+  deploy:
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+
+      - name: Trust server host key
+        env:
+          HETZNER_SERVER_HOST: ${{ secrets.HETZNER_SERVER_HOST }}
+        run: ssh-keyscan -H "$HETZNER_SERVER_HOST" >> ~/.ssh/known_hosts
+
+      - name: Write production .env
+        env:
+          HETZNER_ENV: ${{ secrets.HETZNER_ENV }}
+        run: printf '%s\n' "$HETZNER_ENV" > .env.deploy
+
+      - name: Deploy to Hetzner
+        env:
+          HETZNER_SERVER_HOST: ${{ secrets.HETZNER_SERVER_HOST }}
+          ENV_FILE: .env.deploy
+        run: bash scripts/deploy-hetzner.sh

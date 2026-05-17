@@ -7,6 +7,5 @@ data/*.sqlite
 data/backups/
 coverage
 
-# Local ops (machine-specific docs, Hetzner deploy, hcloud CLI)
+# Local ops: deployment, roadmap, session history, deploy scripts (see docs/local/)
 docs/local/
-scripts/hetzner/
