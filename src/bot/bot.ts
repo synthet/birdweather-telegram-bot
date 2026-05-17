@@ -26,6 +26,7 @@ import { isEbirdEnabled } from '../ebird/config.js';
 import { getAccount, hasActiveSubscription } from '../db/accounts.js';
 import { stationBirdweatherUrl } from '../utils/stationId.js';
 import { promoteEditedBotCommands } from './editedCommandMiddleware.js';
+import { logger } from '../utils/logging.js';
 
 export const bot = new Telegraf(env.TELEGRAM_BOT_TOKEN);
 bot.use(promoteEditedBotCommands);
@@ -288,5 +289,5 @@ bot.command('resume', (ctx) => {
 
 bot.catch((err, ctx) => {
   void ctx.reply('Something went wrong. Please try again.');
-  console.error(err);
+  logger.error({ err }, 'unhandled bot error');
 });
