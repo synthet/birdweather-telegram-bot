@@ -65,6 +65,24 @@ CREATE TABLE IF NOT EXISTS registration_sessions (
   station_token TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS inat_oauth_states (
+  state TEXT PRIMARY KEY,
+  chat_id INTEGER NOT NULL,
+  expires_at TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_inat_oauth_states_expires_at ON inat_oauth_states(expires_at);
+CREATE TABLE IF NOT EXISTS inat_accounts (
+  chat_id INTEGER PRIMARY KEY,
+  inat_user_id INTEGER NOT NULL,
+  inat_login TEXT NOT NULL,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  token_type TEXT,
+  token_expires_in INTEGER,
+  linked_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
   `);
   migrateColumns();
 }
