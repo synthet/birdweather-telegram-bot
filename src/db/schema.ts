@@ -49,6 +49,14 @@ CREATE TABLE IF NOT EXISTS birdweather_accounts (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS inaturalist_auth_tokens (
+  chat_id INTEGER PRIMARY KEY,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS station_geo (
   station_id TEXT PRIMARY KEY,
   lat REAL,
@@ -64,6 +72,30 @@ CREATE TABLE IF NOT EXISTS registration_sessions (
   step TEXT NOT NULL,
   station_token TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS oauth_states (
+  state TEXT PRIMARY KEY,
+  redirect_uri TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_states_created_at ON oauth_states(created_at);
+CREATE TABLE IF NOT EXISTS inat_oauth_states (
+  state TEXT PRIMARY KEY,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  expires_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_inat_oauth_states_expires_at ON inat_oauth_states(expires_at);
+CREATE TABLE IF NOT EXISTS inat_account_links (
+  inat_user_id INTEGER PRIMARY KEY,
+  inat_login TEXT NOT NULL,
+  inat_name TEXT,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  token_type TEXT,
+  scope TEXT,
+  expires_at TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS inat_accounts (
   chat_id INTEGER PRIMARY KEY,

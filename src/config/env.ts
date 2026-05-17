@@ -18,6 +18,13 @@ const schema = z
     LOG_LEVEL: z.string().default('info'),
     NODE_ENV: z.string().default('development'),
     EBIRD_API_TOKEN: z.string().min(1).optional(),
+    TOKEN_ENCRYPTION_KEY: z.string().min(16).optional(),
+    INAT_CLIENT_ID: z.string().min(1).optional(),
+    INAT_CLIENT_SECRET: z.string().min(1).optional(),
+    INAT_REDIRECT_URI: z.string().url().optional(),
+    INAT_OAUTH_AUTHORIZE_URL: z.string().url().default('https://www.inaturalist.org/oauth/authorize'),
+    INAT_OAUTH_TOKEN_URL: z.string().url().default('https://www.inaturalist.org/oauth/token'),
+    INAT_API_BASE_URL: z.string().url().default('https://api.inaturalist.org/v1'),
     INAT_AUTH_BASE_URL: z.string().url().optional(),
   });
 

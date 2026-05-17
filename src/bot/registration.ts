@@ -10,7 +10,6 @@ import { validateRegistration } from '../birdweather/validate.js';
 import { validateStationToken } from '../birdweather/rest.js';
 import { requireStationService } from './birdweatherContext.js';
 import { db } from '../db/client.js';
-import { asErrorMessage } from '../utils/errors.js';
 import { parseStationId, stationBirdweatherUrl } from '../utils/stationId.js';
 import { createStationBirdweatherService } from '../birdweather/service.js';
 import { getChatDetectionFilters, seedDeliveredDetections } from '../subscriptions/seeding.js';
@@ -123,6 +122,8 @@ export function setupRegistration(bot: Telegraf): void {
     startRegistration(chatId);
     await ctx.reply(
       'BirdWeather registration\n\n' +
+        'Permissions requested: read access to your BirdWeather station metadata and detections so this bot can send bird alerts in this chat.\n' +
+        'Disconnect anytime with /unregister; this removes your linked station from this chat.\n\n' +
         '1) Send your station auth token (from the PUC app or station settings — not your Telegram bot token).\n' +
         '2) Then send your station ID.\n\n' +
         '/cancel — abort registration',
