@@ -59,6 +59,14 @@ CREATE TABLE IF NOT EXISTS station_geo (
   ebird_region_code TEXT,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS inat_user_tokens (
+  user_id INTEGER PRIMARY KEY,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  expires_at TEXT NOT NULL,
+  token_type TEXT DEFAULT 'Bearer',
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS registration_sessions (
   chat_id INTEGER PRIMARY KEY,
   step TEXT NOT NULL,
