@@ -67,6 +67,19 @@ CREATE TABLE IF NOT EXISTS station_geo (
   ebird_region_code TEXT,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS inat_auth_state (
+  telegram_user_id INTEGER PRIMARY KEY,
+  chat_id INTEGER,
+  inat_user_id TEXT,
+  inat_login TEXT,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  token_expires_at TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_inat_auth_chat_id ON inat_auth_state(chat_id);
 CREATE TABLE IF NOT EXISTS registration_sessions (
   chat_id INTEGER PRIMARY KEY,
   step TEXT NOT NULL,
