@@ -15,6 +15,8 @@ Non-owners never use the shared `BIRDWEATHER_API_TOKEN`; they use only their per
 
 ## Registration
 
+Operational setup for third-party OAuth providers (including iNaturalist app creation, callback URL requirements, and token handling policy) is documented in [`OPERATIONS.md`](./OPERATIONS.md).
+
 1. User sends `/register`.
 2. Bot asks for **station auth token** (validated via BirdWeather REST).
 3. User sends **station ID** (numeric or parsed from station URL).

@@ -4,25 +4,96 @@
 
 See `.env.example` for the canonical list. Parsed in `src/config/env.ts` with Zod.
 
-| Variable                          | Required         | Default                              | Notes                                                |
-| --------------------------------- | ---------------- | ------------------------------------ | ---------------------------------------------------- |
-| `TELEGRAM_BOT_TOKEN`              | Yes              | —                                    | From [@BotFather](https://t.me/BotFather)            |
-| `BIRDWEATHER_API_TOKEN`           | No               | —                                    | Owner-only `/stations`, `/species`; MCP public tools |
-| `BOT_OWNER_TELEGRAM_ID`           | If API token set | —                                    | Your numeric Telegram user ID                        |
-| `BIRDWEATHER_STATION_TOKEN`       | No               | —                                    | MCP station-scoped tools only                        |
-| `BIRDWEATHER_STATION_ID`          | No               | inferred                             | MCP station ID                                       |
-| `BIRDWEATHER_GRAPHQL_ENDPOINT`    | No               | BirdWeather app URL                  |                                                      |
-| `DATABASE_URL`                    | No               | `file:./data/birdweather-bot.sqlite` |                                                      |
-| `POLL_INTERVAL_SECONDS`           | No               | `60`                                 | Notification poll interval                           |
-| `SPECIES_NOTIFY_COOLDOWN_MINUTES` | No               | `15`                                 | Anti-spam per species                                |
-| `EBIRD_API_TOKEN`                 | No               | —                                    | [eBird keygen](https://ebird.org/api/keygen)         |
-| `MCP_AUTH_TOKEN`                  | For HTTP MCP     | —                                    | Bearer secret                                        |
-| `MCP_PORT`                        | For HTTP MCP     | —                                    | Exposed in Docker compose                            |
-| `MCP_HTTP_HOST`                   | No               | `0.0.0.0`                            |                                                      |
-| `LOG_LEVEL`                       | No               | `info`                               | pino                                                 |
-| `NODE_ENV`                        | No               | `development`                        |                                                      |
+| Variable | Required | Default | Notes |
+|----------|----------|---------|-------|
+| `TELEGRAM_BOT_TOKEN` | Yes | — | From [@BotFather](https://t.me/BotFather) |
+| `BIRDWEATHER_API_TOKEN` | No | — | Owner-only `/stations`, `/species`; MCP public tools |
+| `BOT_OWNER_TELEGRAM_ID` | If API token set | — | Your numeric Telegram user ID |
+| `BIRDWEATHER_STATION_TOKEN` | No | — | MCP station-scoped tools only |
+| `BIRDWEATHER_STATION_ID` | No | inferred | MCP station ID |
+| `BIRDWEATHER_GRAPHQL_ENDPOINT` | No | BirdWeather app URL | |
+| `DATABASE_URL` | No | `file:./data/birdweather-bot.sqlite` | |
+| `POLL_INTERVAL_SECONDS` | No | `60` | Notification poll interval |
+| `SPECIES_NOTIFY_COOLDOWN_MINUTES` | No | `15` | Anti-spam per species |
+| `EBIRD_API_TOKEN` | No | — | [eBird keygen](https://ebird.org/api/keygen) |
+| `TOKEN_ENCRYPTION_KEY` | No | — | Encrypt station/OAuth tokens at rest (16+ chars) |
+| `INAT_CLIENT_ID` | For iNaturalist OAuth | — | OAuth app client ID |
+| `INAT_CLIENT_SECRET` | For iNaturalist OAuth | — | OAuth app client secret |
+| `INAT_REDIRECT_URI` | For iNaturalist OAuth | — | Must match app callback (e.g. `https://host/auth/inat/callback`) |
+| `INAT_OAUTH_SCOPES` | No | `read write` | Space- or comma-separated scopes |
+| `INAT_OAUTH_AUTHORIZE_URL` | No | iNaturalist authorize URL | Override for testing only |
+| `INAT_OAUTH_TOKEN_URL` | No | iNaturalist token URL | Override for testing only |
+| `INAT_API_BASE_URL` | No | `https://api.inaturalist.org/v1` | iNaturalist API base |
+| `INAT_AUTH_BASE_URL` | No | — | Public base URL for `/inat_connect` links in Telegram |
+| `MCP_AUTH_TOKEN` | For HTTP MCP | — | Bearer secret |
+| `MCP_PORT` | For HTTP MCP | — | Exposed in Docker compose |
+| `MCP_HTTP_HOST` | No | `0.0.0.0` | |
+| `LOG_LEVEL` | No | `info` | pino |
+| `NODE_ENV` | No | `development` | |
 
 **Security:** Never commit `.env`, `data/*.sqlite`, or paste tokens into chat logs that may be stored in git.
+
+## iNaturalist OAuth setup
+
+Use this section when enabling iNaturalist account linking.
+
+### 1) Create an iNaturalist OAuth application
+
+1. Sign in to iNaturalist with the maintainer account that will own the app.
+2. Open account settings and create a new OAuth application.
+3. Set an app name/description that clearly identifies this bot.
+4. Add the callback URL from `INAT_REDIRECT_URI` (must match exactly, including protocol, host, path, and trailing slash behavior).
+5. Save and copy the generated **Client ID** and **Client Secret** into your `.env`.
+
+### 2) Configure required environment variables
+
+Add the following values:
+
+```bash
+INAT_CLIENT_ID=...
+INAT_CLIENT_SECRET=...
+INAT_REDIRECT_URI=https://<your-domain>/auth/inat/callback
+```
+
+Recommendations:
+
+- Use HTTPS in production.
+- Keep `INAT_CLIENT_SECRET` in a secret manager (not plaintext deploy scripts).
+- Keep staging and production apps separate (different client IDs/secrets/redirect URIs).
+
+### 3) Callback URL configuration checklist
+
+If OAuth redirect fails, verify all of the following are identical between app settings and runtime config:
+
+- URL scheme (`https://` vs `http://`)
+- Hostname (including `www` subdomain differences)
+- Path (for example `/auth/inaturalist/callback`)
+- Port (if non-default)
+- Trailing slash behavior
+
+## iNaturalist token lifetime and refresh behavior
+
+- Access tokens should be treated as short-lived and may expire at any time.
+- Persist the token expiry timestamp returned by iNaturalist and check it before API calls.
+- If a refresh token is present, refresh access tokens proactively before expiry (for example, a few minutes early).
+- If refresh fails (`invalid_grant`, revoked session, expired refresh token), clear stored credentials and require the user to re-authorize.
+
+## iNaturalist OAuth troubleshooting checklist
+
+| Symptom | Check |
+|---------|--------|
+| `state` mismatch | Verify CSRF `state` is generated server-side, stored per session/user, single-use, and compared byte-for-byte on callback. |
+| Redirect URI mismatch | Confirm `INAT_REDIRECT_URI` exactly matches the configured callback URL (scheme/host/path/port/trailing slash). |
+| User reports auth revoked | Attempt token refresh once; on failure clear stored tokens and prompt for a fresh OAuth consent flow. |
+
+## Privacy and data retention for OAuth tokens
+
+- Store only required OAuth secrets (access token, refresh token if provided, expiry, and minimal account identifier).
+- Encrypt tokens at rest when possible; never log raw tokens.
+- Restrict token access to bot runtime and migration/admin tooling only.
+- Delete stored OAuth credentials immediately when a user disconnects account access.
+- Apply a retention limit for orphaned OAuth rows (for example after account deletion), and document cleanup cadence.
+- Avoid backing up secrets into publicly accessible artifacts.
 
 ## Local development
 
