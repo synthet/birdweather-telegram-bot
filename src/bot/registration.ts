@@ -10,7 +10,6 @@ import { validateRegistration } from '../birdweather/validate.js';
 import { validateStationToken } from '../birdweather/rest.js';
 import { requireStationService } from './birdweatherContext.js';
 import { db } from '../db/client.js';
-import { asErrorMessage } from '../utils/errors.js';
 import { parseStationId, stationBirdweatherUrl } from '../utils/stationId.js';
 import { createStationBirdweatherService } from '../birdweather/service.js';
 import { getChatDetectionFilters, seedDeliveredDetections } from '../subscriptions/seeding.js';
