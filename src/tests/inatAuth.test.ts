@@ -1,64 +1,68 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../db/client.js';
-import { deleteInatAuth, getInatAuthByTelegramUser, isInatTokenExpired, upsertInatAuth } from '../db/inatAuth.js';
 import { migrate } from '../db/schema.js';
+import {
+  deleteInatAuth,
+  getInatAuthByTelegramUser,
+  isInatTokenExpired,
+  upsertInatAuth,
+} from '../db/inatAuth.js';
 
-describe('inat auth storage', () => {
+describe('inat auth db access', () => {
   beforeEach(() => {
     migrate();
     db.exec('DELETE FROM inat_auth');
   });
 
-  it('upserts and reads auth by telegram user', () => {
+  it('upserts and fetches inat auth by telegram user', () => {
+    const expiry = new Date(Date.now() + 60_000);
     upsertInatAuth({
-      telegramUserId: 111,
-      chatId: 222,
-      inatUserId: 333,
+      telegramUserId: 101,
+      telegramChatId: 202,
+      inatUserId: 303,
       inatLogin: 'birder',
       accessToken: 'access-1',
       refreshToken: 'refresh-1',
-      tokenExpiresAt: '2026-05-17T12:00:00.000Z',
+      tokenExpiresAt: expiry,
+      refreshClientId: 'client-id',
+      refreshClientSecret: 'client-secret',
     });
 
-    const auth = getInatAuthByTelegramUser(111);
-    expect(auth?.telegram_user_id).toBe(111);
-    expect(auth?.chat_id).toBe(222);
-    expect(auth?.inat_user_id).toBe(333);
-    expect(auth?.inat_login).toBe('birder');
-    expect(auth?.access_token).toBe('access-1');
-    expect(auth?.refresh_token).toBe('refresh-1');
-    expect(auth?.token_expires_at).toBe('2026-05-17T12:00:00.000Z');
+    const row = getInatAuthByTelegramUser(101);
+    expect(row).toBeDefined();
+    expect(row?.telegram_chat_id).toBe(202);
+    expect(row?.inat_user_id).toBe(303);
+    expect(row?.inat_login).toBe('birder');
+    expect(row?.access_token).toBe('access-1');
+    expect(row?.refresh_token).toBe('refresh-1');
+    expect(row?.refresh_client_id).toBe('client-id');
+    expect(row?.refresh_client_secret).toBe('client-secret');
+    expect(row?.token_expires_at).toBe(expiry.toISOString());
 
     upsertInatAuth({
-      telegramUserId: 111,
-      chatId: 999,
-      inatUserId: 444,
-      inatLogin: 'updated-birder',
+      telegramUserId: 101,
+      telegramChatId: 999,
       accessToken: 'access-2',
-      refreshToken: null,
-      tokenExpiresAt: '2026-05-18T12:00:00.000Z',
+      tokenExpiresAt: null,
     });
 
-    const updated = getInatAuthByTelegramUser(111);
-    expect(updated?.chat_id).toBe(999);
-    expect(updated?.inat_user_id).toBe(444);
-    expect(updated?.inat_login).toBe('updated-birder');
+    const updated = getInatAuthByTelegramUser(101);
+    expect(updated?.telegram_chat_id).toBe(999);
     expect(updated?.access_token).toBe('access-2');
-    expect(updated?.refresh_token).toBeNull();
-    expect(updated?.token_expires_at).toBe('2026-05-18T12:00:00.000Z');
+    expect(updated?.token_expires_at).toBeNull();
   });
 
-  it('deletes auth by telegram user', () => {
-    upsertInatAuth({ telegramUserId: 55, accessToken: 'x' });
-    expect(deleteInatAuth(55)).toBe(true);
-    expect(deleteInatAuth(55)).toBe(false);
-    expect(getInatAuthByTelegramUser(55)).toBeUndefined();
+  it('deletes auth rows', () => {
+    upsertInatAuth({ telegramUserId: 111, accessToken: 'access' });
+    expect(deleteInatAuth(111)).toBe(true);
+    expect(deleteInatAuth(111)).toBe(false);
+    expect(getInatAuthByTelegramUser(111)).toBeUndefined();
   });
 
-  it('determines token expiry', () => {
-    const now = new Date('2026-05-17T10:00:00.000Z');
-    expect(isInatTokenExpired({ token_expires_at: null }, now)).toBe(false);
-    expect(isInatTokenExpired({ token_expires_at: '2026-05-17T11:00:00.000Z' }, now)).toBe(false);
-    expect(isInatTokenExpired({ token_expires_at: '2026-05-17T09:00:00.000Z' }, now)).toBe(true);
+  it('evaluates token expiry', () => {
+    expect(isInatTokenExpired({ token_expires_at: null })).toBe(false);
+    expect(isInatTokenExpired({ token_expires_at: new Date(Date.now() - 1_000).toISOString() })).toBe(true);
+    expect(isInatTokenExpired({ token_expires_at: new Date(Date.now() + 60_000).toISOString() })).toBe(false);
+    expect(isInatTokenExpired({ token_expires_at: 'not-a-date' })).toBe(true);
   });
 });
