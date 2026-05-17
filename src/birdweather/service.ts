@@ -35,7 +35,7 @@ interface GqlDetection {
   probability?: number;
   soundscape?: { url?: string };
   species: Species;
-  station?: Pick<Station, 'id' | 'name'>;
+  station?: Pick<Station, 'id' | 'name' | 'timezone'>;
 }
 
 async function retry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {

@@ -22,6 +22,8 @@ Chronological summary of work driven in Cursor chats (May 2026). Transcript UUID
 | | API survey | Integration options (eBird done; xeno-canto, iNat, etc. deferred) | `c2da8fbf-fe65-49fb-85a5-8f023584bdf3` |
 | | Notification copy | Removed “New BirdWeather detection” header from alerts | `773f147c-6347-4f29-ba4c-2a11910d6dae` |
 | | Documentation | `docs/` specs and ops guides | `e80e93fd-5ae5-4260-86b0-6bf4e4c321a0` |
+| 2026-05-16 | Hetzner production | Production server + cloud-init + Docker; local ops in gitignored `scripts/hetzner/` and `docs/local/` | `d645d42e-c8dd-41e3-b25a-448b549f5631` |
+| 2026-05-16 | Remote MCP (planned) | Request to wire second MCP in `.cursor/mcp.json` to production HTTP endpoint; firewall/tunnel still required | `074dc6c3-e60f-4dec-b569-1926081298d5` |
 
 ## Security note
 

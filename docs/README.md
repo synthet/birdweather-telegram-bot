@@ -10,4 +10,6 @@ Specs and operational docs for **birdweather-telegram-bot**, synthesized from im
 | [ROADMAP.md](./ROADMAP.md) | Planned integrations and deferred features |
 | [HISTORY.md](./HISTORY.md) | Chronological log of major chat-driven changes |
 
+**Local-only** (gitignored, not in clones): [`docs/local/`](./local/) — production deployment, server IPs, operator notes. See [`local/README.md`](./local/README.md) on your machine after you create or sync that folder.
+
 For day-to-day setup, start with the root [README.md](../README.md), then use this folder for design detail.

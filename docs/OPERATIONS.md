@@ -22,7 +22,7 @@ See `.env.example` for the canonical list. Parsed in `src/config/env.ts` with Zo
 | `LOG_LEVEL` | No | `info` | pino |
 | `NODE_ENV` | No | `development` | |
 
-**Security:** Never commit `.env`, `data/*.sqlite`, or paste tokens into chat logs that may be stored in git. Project rule: `.cursor/rules/no-secrets-in-git.mdc`.
+**Security:** Never commit `.env`, `data/*.sqlite`, or paste tokens into chat logs that may be stored in git.
 
 ## Local development
 

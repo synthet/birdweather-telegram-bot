@@ -40,6 +40,6 @@ export interface Detection {
   probability?: number;
   soundscapeUrl?: string;
   species: Species;
-  station?: Pick<Station, 'id' | 'name'>;
+  station?: Pick<Station, 'id' | 'name' | 'timezone'>;
   rarityNote?: string;
 }

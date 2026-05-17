@@ -21,6 +21,8 @@ Detailed specs and architecture: **[docs/](./docs/)**
 - [Roadmap](./docs/ROADMAP.md) — planned integrations
 - [History](./docs/HISTORY.md) — chat-driven change log
 
+Local-only ops (Hetzner deploy, server details): `docs/local/` — gitignored; not in the public repo.
+
 ## Env vars (summary)
 
 | Variable | Purpose |
@@ -67,6 +69,7 @@ SQLite data is stored in `./data` on the host. Redeploy with backup:
 | `pnpm test` | Vitest |
 | `pnpm mcp:stdio` | MCP over stdio |
 | `pnpm mcp:http` | MCP HTTP only (dev) |
+| `scripts/docker-redeploy.ps1` | Local Docker redeploy with DB backup |
 
 ## Limitations
 

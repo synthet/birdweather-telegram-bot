@@ -45,7 +45,7 @@ export function formatDetectionHtml(
   if (title) lines.push(`<b>${escapeTelegramHtml(title)}</b>`, '');
   lines.push(`<b>${common}</b>`, `<i>${scientific}</i>`);
 
-  const when = formatDetectionTime(d.detectedAt);
+  const when = formatDetectionTime(d.detectedAt, d.station?.timezone);
   if (d.station?.id) {
     const stationUrl = stationBirdweatherUrl(d.station.id);
     const label = d.station.name ? escapeTelegramHtml(d.station.name) : 'Station';

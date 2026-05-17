@@ -1,7 +1,12 @@
 node_modules
 dist
 .env
-.cursor/toolbox/
+.tools/
+.cursor/
 data/*.sqlite
 data/backups/
 coverage
+
+# Local ops (machine-specific docs, Hetzner deploy, hcloud CLI)
+docs/local/
+scripts/hetzner/

@@ -76,6 +76,7 @@ export const DETECTIONS_QUERY = gql`
         station {
           id
           name
+          timezone
         }
       }
     }

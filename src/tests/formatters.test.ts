@@ -58,6 +58,22 @@ describe('formatDetectionHtml', () => {
     expect(msg).toContain('href="https://app.birdweather.com/stations/26807"');
   });
 
+  it('shows detection time in station timezone', () => {
+    const msg = formatDetectionHtml({
+      id: '1',
+      detectedAt: '2026-05-16T21:53:58-05:00',
+      species: {
+        commonName: 'Northern Rough-winged Swallow',
+        scientificName: 'Stelgidopteryx serripennis',
+      },
+      station: { id: '26807', name: 'Sputnik', timezone: 'America/Chicago' },
+    });
+    expect(msg).toMatch(/May 16, 2026/);
+    expect(msg).toMatch(/9:53/);
+    expect(msg).toMatch(/CDT|CST/);
+    expect(msg).not.toContain('May 17, 2026, 2:53');
+  });
+
   it('omits soundscape link when disabled', () => {
     const msg = formatDetectionHtml(
       {
