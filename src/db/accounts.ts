@@ -1,18 +1,23 @@
 import { db } from './client.js';
+import { decryptSecret, encryptSecret } from '../utils/secrets.js';
 
 export interface BirdweatherAccount {
   chat_id: number;
   station_id: string;
   station_token: string;
+  station_token_encrypted?: string;
   station_name: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export function getAccount(chatId: number): BirdweatherAccount | undefined {
-  return db
+  const account = db
     .prepare('SELECT * FROM birdweather_accounts WHERE chat_id = ?')
     .get(chatId) as BirdweatherAccount | undefined;
+
+  if (account?.station_token) account.station_token = decryptSecret(account.station_token);
+  return account;
 }
 
 export function saveAccount(
@@ -29,7 +34,7 @@ export function saveAccount(
        station_token = excluded.station_token,
        station_name = excluded.station_name,
        updated_at = CURRENT_TIMESTAMP`,
-  ).run(chatId, stationId, stationToken, stationName);
+  ).run(chatId, stationId, encryptSecret(stationToken), stationName);
 }
 
 export function deleteAccount(chatId: number): boolean {

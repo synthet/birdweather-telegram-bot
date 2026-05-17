@@ -6,7 +6,7 @@ import { isInitializeRequest, type McpServer } from '@modelcontextprotocol/serve
 import type { Request, Response } from 'express';
 import { mcpEnv, isMcpHttpEnabled } from '../config/mcpEnv.js';
 import { logger } from '../utils/logging.js';
-import { bearerAuthMiddleware } from './auth.js';
+import { bearerAuthMiddleware, rateLimitMiddleware } from './auth.js';
 import { createMcpContext } from './context.js';
 import { createBirdweatherMcpServer } from './createServer.js';
 
@@ -109,10 +109,11 @@ export async function startMcpHttpServer(): Promise<Server> {
   });
 
   const auth = bearerAuthMiddleware(authToken);
+  const rateLimit = rateLimitMiddleware(120, 60_000);
 
-  app.post('/mcp', auth, (req, res) => void handleMcpPost(req, res, getServer));
-  app.get('/mcp', auth, (req, res) => void handleMcpGet(req, res));
-  app.delete('/mcp', auth, (req, res) => void handleMcpDelete(req, res));
+  app.post('/mcp', rateLimit, auth, (req, res) => void handleMcpPost(req, res, getServer));
+  app.get('/mcp', rateLimit, auth, (req, res) => void handleMcpGet(req, res));
+  app.delete('/mcp', rateLimit, auth, (req, res) => void handleMcpDelete(req, res));
 
   const server = await new Promise<Server>((resolve, reject) => {
     const s = app.listen(port, host, () => resolve(s));

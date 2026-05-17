@@ -125,6 +125,8 @@ export function setupRegistration(bot: Telegraf): void {
       'BirdWeather registration\n\n' +
         '1) Send your station auth token (from the PUC app or station settings — not your Telegram bot token).\n' +
         '2) Then send your station ID.\n\n' +
+        'Permissions: this stores your station token so the bot can read station details/detections and send alerts.\n' +
+        'Disconnect anytime with /unregister.\n\n' +
         '/cancel — abort registration',
     );
   });
