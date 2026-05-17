@@ -8,7 +8,6 @@ const schema = z
     BIRDWEATHER_API_TOKEN: z.string().min(1).optional(),
     BIRDWEATHER_STATION_TOKEN: z.string().min(1).optional(),
     BIRDWEATHER_STATION_ID: z.string().min(1).optional(),
-    BOT_OWNER_TELEGRAM_ID: z.coerce.number().int().positive().optional(),
     BIRDWEATHER_GRAPHQL_ENDPOINT: z.string().url().default('https://app.birdweather.com/graphql'),
     DATABASE_URL: z.string().default('file:./data/birdweather-bot.sqlite'),
     POLL_INTERVAL_SECONDS: z.coerce.number().int().positive().default(60),

@@ -143,7 +143,7 @@ export type BirdweatherService = ReturnType<typeof createBirdweatherService>;
 export type PublicBirdweatherService = Pick<BirdweatherService, 'stations' | 'searchSpecies'>;
 export type StationBirdweatherService = Pick<
   BirdweatherService,
-  'station' | 'detections' | 'topSpecies'
+  'station' | 'detections' | 'topSpecies' | 'stations' | 'searchSpecies'
 >;
 
 export function createPublicBirdweatherService(apiToken: string): PublicBirdweatherService {
@@ -160,6 +160,8 @@ export function createStationBirdweatherService(apiToken: string): StationBirdwe
     station: service.station,
     detections: service.detections,
     topSpecies: service.topSpecies,
+    stations: service.stations,
+    searchSpecies: service.searchSpecies,
   };
 }
 

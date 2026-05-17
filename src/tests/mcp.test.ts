@@ -40,6 +40,8 @@ describe('MCP context', () => {
       station: async () => null,
       detections: async () => [],
       topSpecies: async () => [],
+      stations: async () => [],
+      searchSpecies: async () => [],
     };
     const ctx: McpContext = {
       ...emptyCtx,

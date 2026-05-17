@@ -6,12 +6,6 @@ import { logger } from './utils/logging.js';
 import { startScheduler } from './subscriptions/scheduler.js';
 import { isEbirdEnabled } from './ebird/config.js';
 
-if (env.BIRDWEATHER_API_TOKEN && env.BOT_OWNER_TELEGRAM_ID == null) {
-  logger.warn(
-    'BIRDWEATHER_API_TOKEN is set but BOT_OWNER_TELEGRAM_ID is missing; /stations and /species are owner-only until you set it',
-  );
-}
-
 migrate();
 
 const mcpHttpEnabled = Boolean(env.MCP_AUTH_TOKEN && env.MCP_PORT);

@@ -6,8 +6,8 @@ import { formatDetectionHtml } from './formatters/detections.js';
 import { formatSpecies } from './formatters/species.js';
 import {
   fetchRecentDetections,
-  requirePublicService,
   requireStationService,
+  resolveCatalogService,
   resolveStationId,
 } from './birdweatherContext.js';
 import { setupRegistration } from './registration.js';
@@ -90,7 +90,7 @@ bot.command('stations', async (ctx) => {
   const q = ctx.payload.trim();
   if (!q) return ctx.reply('Usage: /stations <query>');
   try {
-    const list = await requirePublicService(ctx.from?.id).stations(q, 10);
+    const list = await resolveCatalogService(ctx.chat.id).stations(q, 10);
     return ctx.reply(list.length ? list.map(formatStation).join('\n\n') : 'No stations found');
   } catch (e) {
     return ctx.reply(asErrorMessage(e));
@@ -119,7 +119,7 @@ bot.command('species', async (ctx) => {
   const q = ctx.payload.trim();
   if (!q) return ctx.reply('Usage: /species <name>');
   try {
-    const list = await requirePublicService(ctx.from?.id).searchSpecies(q);
+    const list = await resolveCatalogService(ctx.chat.id).searchSpecies(q);
     return ctx.reply(list.slice(0, 10).map(formatSpecies).join('\n\n') || 'No species found');
   } catch (e) {
     return ctx.reply(asErrorMessage(e));

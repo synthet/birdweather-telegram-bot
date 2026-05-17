@@ -4,6 +4,14 @@
       "command": "node",
       "args": ["dist/mcp/stdio.js"],
       "cwd": "${workspaceFolder}"
+    },
+    "sqlite": {
+      "command": "${workspaceFolder}/.cursor/toolbox/toolbox.exe",
+      "args": ["--prebuilt", "sqlite", "--stdio"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "SQLITE_DATABASE": "./data/birdweather-bot.sqlite"
+      }
     }
   }
 }
