@@ -11,6 +11,8 @@
 #   ENV_FILE            — local env file to upload (default: .env)
 #   SYNC_DB             — set to 1 to upload ./data/birdweather-bot.sqlite when present
 #
+# On the server, runs scripts/fix-remote-data-perms.sh before docker compose (data/ → UID 1000).
+#
 # GitHub Actions: set secrets HETZNER_SERVER_HOST, HETZNER_SSH_PRIVATE_KEY, HETZNER_ENV
 # and write HETZNER_ENV to ENV_FILE before calling this script.
 
@@ -69,6 +71,7 @@ cd ${REMOTE_DIR}
 tar -xzf /tmp/birdweather-bot-deploy.tgz
 rm -f /tmp/birdweather-bot-deploy.tgz
 if grep -q '^NODE_ENV=' .env; then sed -i 's/^NODE_ENV=.*/NODE_ENV=production/' .env; else echo NODE_ENV=production >> .env; fi
+bash scripts/fix-remote-data-perms.sh
 docker compose up --build -d
 docker compose ps"
 

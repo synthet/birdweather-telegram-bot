@@ -133,6 +133,33 @@ bash scripts/docker-redeploy.sh
 
 Backs up `data/birdweather-bot.sqlite` to `data/backups/` (keeps last 10 by default), rebuilds image, recreates container.
 
+## Production deploy (Hetzner)
+
+Preferred: `bash scripts/deploy-hetzner-hcloud.sh` or `.\scripts\deploy-hetzner-hcloud.ps1` (hcloud IP + `deploy-hetzner.sh`). Requires `HETZNER_SERVER_HOST` or `HCLOUD_TOKEN`, production `.env`, and SSH to the server.
+
+Flow on the server:
+
+1. Upload tarball and `.env` (optional `SYNC_DB=1` uploads local SQLite).
+2. Extract tarball, set `NODE_ENV=production`.
+3. **`scripts/fix-remote-data-perms.sh`** — `chown -R 1000:1000 data`, `chmod 775` on `data/`, `664` on `*.sqlite` (matches Docker `USER node`).
+4. `docker compose up --build -d`.
+
+The bind-mounted `./data` directory must be writable by UID **1000** inside the container. `scp` or `tar` from Windows often leaves files owned by a host UID (e.g. `197609`); migrations then fail with `SQLITE_READONLY` and the container restart-loops.
+
+**Verify after deploy:**
+
+```bash
+ssh root@<host> 'cd /opt/birdweather-telegram-bot && docker compose ps && docker compose logs --tail=30 bot'
+```
+
+Status should stay **Up** (not `Restarting`). Manual repair on the server:
+
+```bash
+cd /opt/birdweather-telegram-bot && bash scripts/fix-remote-data-perms.sh && docker compose up -d
+```
+
+CI uses the same `deploy-hetzner.sh` when the deploy job is enabled (see `.github/workflows/ci.yml`).
+
 ## MCP setup
 
 ### stdio (Cursor)
@@ -272,6 +299,7 @@ set_ebird_region - Override eBird region code
 | Repeated species alerts | Raise `SPECIES_NOTIFY_COOLDOWN_MINUTES` for burst spam; common species alert at most once per calendar day unless eBird rare, first-ever, or infrequent (≤ `SPECIES_RARE_STATION_MAX_COUNT` in top 100); verify `species_last_notified` populated |
 | eBird commands fail     | `EBIRD_API_TOKEN`; station geo cached (`/ebird_region`)                                    |
 | Docker DB wiped         | Use redeploy script; confirm `./data` volume mount                                         |
+| Bot `Restarting`, `SQLITE_READONLY` in logs | Run `bash scripts/fix-remote-data-perms.sh` on server (or redeploy); `data/` must be `1000:1000` |
 
 ## Logs
 
